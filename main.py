@@ -11,8 +11,7 @@ from datetime import datetime
 import jdatetime
 
 # نسخه و تنظیمات پایه
-CURRENT_VERSION = "3.0.0-PRO"
-UPDATE_URL = "https://raw.githubusercontent.com/farshidas2701-cpu/starlink-monitor/main/version.json"
+CURRENT_VERSION = "3.5.0-PRO"
 SPLASH_IMAGE_URL = "https://v3.fasturl.cloud/file/fasturl/2026/08/02/images.jpeg_627fbbf54522930ed6b1fc910e5362bf.jpeg"
 
 INITIAL_STARLINK_PREFIXES = [
@@ -22,54 +21,16 @@ INITIAL_STARLINK_PREFIXES = [
 DEFAULT_USER_HASH = hashlib.sha256("0011300".encode()).hexdigest()
 DEFAULT_ADMIN_HASH = hashlib.sha256("f09931807880F".encode()).hexdigest()
 
-# دیتابیس هوشمند در حافظه (جداسازی بر اساس هر کاربر)
+# دیتابیس مرکز کنترل و داده‌ها
 app_state = {
+    "is_app_active": True,       # کلید خاموش/روشن کردن کل برنامه توسط ادمین
+    "user_counter": 1,           # شمارنده ساخت شناسه کاربران (کاربر ۱، کاربر ۲، ...)
+    "user_id_map": {},          # نگاشت نام کاربری به شماره اختصاصی
     "admin_hash": DEFAULT_ADMIN_HASH,
     "user_hash": DEFAULT_USER_HASH,
     "mac_prefixes": list(INITIAL_STARLINK_PREFIXES),
-    "user_data": {},  # داده‌های اختصاصی هر کاربر: { username: { notes: [], 2fa: False, suggestions: [] } }
-    "failed_attempts": 0,
-    "lockout_until": 0
-}
-
-# متون ۳ زبانه برنامه
-LANGUAGES = {
-    "fa": {
-        "title": "سامانه هوشمند پایش و رادار",
-        "welcome": "به سامانه پایش و رادار خوش آمدید",
-        "enter": "ورود به برنامه",
-        "scan": "اسکن مجدد",
-        "suspicious": "علامت‌گذاری نقطه مشکوک",
-        "notes": "یادداشت‌های اختصاصی روی نقشه",
-        "2fa": "تایید دو مرحله‌ای",
-        "suggest": "ارسال پیشنهاد به ادمین",
-        "lang": "زبان",
-        "dark": "حالت تاریک"
-    },
-    "en": {
-        "title": "Smart Radar System",
-        "welcome": "Welcome to Radar System",
-        "enter": "Enter App",
-        "scan": "Rescan",
-        "suspicious": "Mark Suspicious Point",
-        "notes": "Map Notes",
-        "2fa": "2-Factor Auth",
-        "suggest": "Send Suggestion",
-        "lang": "Language",
-        "dark": "Dark Mode"
-    },
-    "ar": {
-        "title": "نظام الرادار الذكي",
-        "welcome": "مرحبا بكم في نظام الرادار",
-        "enter": "الدخول إلى التطبيق",
-        "scan": "إعادة المسح",
-        "suspicious": "تحديد نقطة مشبوهة",
-        "notes": "ملاحظات الخريطة",
-        "2fa": "المصادقة الثنائية",
-        "suggest": "إرسال اقتراح",
-        "lang": "اللغة",
-        "dark": "الوضع الداكن"
-    }
+    "user_data": {},            # داده‌های کاربر: یادداشت‌ها، پیشنهادها و...
+    "access_logs": []           # گزارش‌های ورود و خروج کاربران برای ادمین
 }
 
 def hash_pass(password: str) -> str:
@@ -79,28 +40,27 @@ def sanitize_input(text: str) -> str:
     return re.sub(r'[\';\"\\<>]', '', text)
 
 def get_tehran_shamsi_datetime():
-    # تاریخ دقیق شمسی و ساعت تهران
     now_shamsi = jdatetime.datetime.now()
     date_str = now_shamsi.strftime("%Y/%m/%d")
     time_str = now_shamsi.strftime("%H:%M:%S")
     return date_str, time_str
 
 def main(page: ft.Page):
-    page.title = "سامانه هوشمند رادار استارلینک"
+    page.title = "سامانه هوشمند رادار و پایش استارلینک"
     page.theme_mode = ft.ThemeMode.DARK
     page.rtl = True
     page.padding = 10
 
-    current_lang = "fa"
     active_user = None
+    is_admin = False
 
-    # ----- 1. صفحه ورودی (Welcome / Splash) -----
-    username_field = ft.TextField(label="نام کاربری شما", width=280, text_align=ft.TextAlign.CENTER)
+    # ----- 1. صفحه ورودی (Splash Screen / Login) -----
+    username_field = ft.TextField(label="نام کاربری", width=280, text_align=ft.TextAlign.CENTER)
     pass_field = ft.TextField(label="رمز عبور", password=True, can_reveal_password=True, width=280)
-    login_err = ft.Text("", color=ft.colors.RED_400, size=12)
+    login_err = ft.Text("", color=ft.colors.RED_400, size=12, weight=ft.FontWeight.BOLD)
 
     def start_app(e):
-        nonlocal active_user
+        nonlocal active_user, is_admin
         uname = sanitize_input(username_field.value)
         pwd = sanitize_input(pass_field.value)
 
@@ -109,47 +69,133 @@ def main(page: ft.Page):
             page.update()
             return
 
-        if hash_pass(pwd) == app_state["user_hash"] or hash_pass(pwd) == app_state["admin_hash"]:
+        user_h = hash_pass(pwd)
+
+        # بررسی ورود ادمین
+        if user_h == app_state["admin_hash"]:
+            is_admin = True
+            active_user = "ادمین سیستم"
+            show_admin_dashboard()
+            return
+
+        # بررسی ورود کاربر عادی
+        if user_h == app_state["user_hash"]:
+            # اگر برنامه توسط ادمین خاموش شده باشد
+            if not app_state["is_app_active"]:
+                login_err.value = "⛔ برنامه توسط مدیریت غیرفعال شده است."
+                page.update()
+                return
+
+            is_admin = False
             active_user = uname
-            if active_user not in app_state["user_data"]:
-                # ایجاد فضای کاری و پنجره اختصاصی برای کاربر جدید
+
+            # اختصاص شناسه عددی ثابت (کاربر ۱، کاربر ۲، ...) در صورت اولین ورود
+            if active_user not in app_state["user_id_map"]:
+                user_code = f"کاربر {app_state['user_counter']}"
+                app_state["user_id_map"][active_user] = user_code
+                app_state["user_counter"] += 1
                 app_state["user_data"][active_user] = {
                     "notes": [],
                     "2fa_enabled": False,
                     "suggestions": []
                 }
-            show_dashboard()
+
+            # ثبت گزارش ورود برای ادمین
+            d_sh, t_teh = get_tehran_shamsi_datetime()
+            user_code = app_state["user_id_map"][active_user]
+            app_state["access_logs"].append({
+                "user_code": user_code,
+                "action": "ورود",
+                "time": f"{d_sh} ساعت {t_teh}"
+            })
+
+            show_user_dashboard()
         else:
             login_err.value = "رمز عبور نادرست است!"
             page.update()
 
     splash_view = ft.Container(
         content=ft.Column([
-            ft.Image(src=SPLASH_IMAGE_URL, width=250, height=320, fit=ft.ImageFit.CONTAIN, border_radius=15),
-            ft.Text("به سامانه هوشمند پایش و رادار خوش آمدید", size=16, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
+            ft.Image(src=SPLASH_IMAGE_URL, width=240, height=300, fit=ft.ImageFit.CONTAIN, border_radius=15),
+            ft.Text("به سامانه هوشمند پایش و رادار خوش آمدید", size=15, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
             username_field,
             pass_field,
             ft.ElevatedButton("ورود به برنامه 🚀", on_click=start_app, bgcolor=ft.colors.GREEN_700, color=ft.colors.WHITE, width=280),
             login_err
-        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12),
+        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
         alignment=ft.alignment.center,
         expand=True
     )
 
-    # ----- 2. داشبورد اختصاصی کاربر -----
-    def show_dashboard():
+    def logout_user(e):
+        nonlocal active_user, is_admin
+        if active_user and not is_admin and active_user in app_state["user_id_map"]:
+            d_sh, t_teh = get_tehran_shamsi_datetime()
+            user_code = app_state["user_id_map"][active_user]
+            app_state["access_logs"].append({
+                "user_code": user_code,
+                "action": "خروج",
+                "time": f"{d_sh} ساعت {t_teh}"
+            })
+        active_user = None
+        is_admin = False
+        main(page)
+
+    # ----- 2. پنل مدیریت (ادمین) -----
+    def show_admin_dashboard():
         page.controls.clear()
         
-        # هدر ساعت و تاریخ تهران
+        status_text = ft.Text(
+            f"وضعیت برنامه: {'🟢 روشن (فعال)' if app_state['is_app_active'] else '🔴 خاموش (غیرفعال)'}",
+            size=15, weight=ft.FontWeight.BOLD
+        )
+
+        def toggle_app_status(e):
+            app_state["is_app_active"] = e.control.value
+            status_text.value = f"وضعیت برنامه: {'🟢 روشن (فعال)' if app_state['is_app_active'] else '🔴 خاموش (غیرفعال)'}"
+            page.update()
+
+        # نمایش گزارش ورود و خروج کاربران با شناسه عددی
+        logs_list = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO, height=250)
+        for log in reversed(app_state["access_logs"]):
+            color = ft.colors.GREEN_400 if log["action"] == "ورود" else ft.colors.AMBER_400
+            logs_list.controls.append(
+                ft.Container(
+                    content=ft.Row([
+                        ft.Text(f"👤 {log['user_code']}", weight=ft.FontWeight.BOLD, color=ft.colors.CYAN_200),
+                        ft.Text(f"عملکرد: {log['action']}", color=color),
+                        ft.Text(f"⏰ {log['time']}", size=11, color=ft.colors.GREY_400)
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    padding=8, bgcolor=ft.colors.WHITE10, border_radius=6
+                )
+            )
+
+        admin_panel = ft.Column([
+            ft.Row([
+                ft.Text("👑 پنل اختصاصی مدیریت (ادمین)", size=16, weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_400),
+                ft.IconButton(ft.icons.LOGOUT, on_click=logout_user, tooltip="خروج ادمین")
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Divider(),
+            status_text,
+            ft.Switch(label="خاموش / روشن کردن سراسری برنامه برای کاربران", value=app_state["is_app_active"], on_change=toggle_app_status),
+            ft.Divider(),
+            ft.Text("📊 گزارش ورود و خروج کاربران (فقط ادمین):", size=14, weight=ft.FontWeight.BOLD),
+            logs_list
+        ], scroll=ft.ScrollMode.AUTO)
+
+        page.add(admin_panel)
+
+    # ----- 3. داشبورد اختصاصی کاربران عادی -----
+    def show_user_dashboard():
+        page.controls.clear()
+        
         date_shamsi, time_tehran = get_tehran_shamsi_datetime()
         clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran} (تهران)", size=12, color=ft.colors.CYAN_200, weight=ft.FontWeight.BOLD)
 
-        # تغییر تم (تاریک/روشن)
         def toggle_theme(e):
             page.theme_mode = ft.ThemeMode.LIGHT if page.theme_mode == ft.ThemeMode.DARK else ft.ThemeMode.DARK
             page.update()
 
-        # فعال‌سازی 2FA اختیاری
         def toggle_2fa(e):
             udata = app_state["user_data"][active_user]
             udata["2fa_enabled"] = e.control.value
@@ -157,9 +203,8 @@ def main(page: ft.Page):
             page.snack_bar.open = True
             page.update()
 
-        # بخش ثبت یادداشت و نقاط مشکوک
         note_input = ft.TextField(label="متن یادداشت یا نقطه مشکوک", expand=True)
-        is_suspicious_check = ft.Checkbox(label="⚠️ نقطه مشکوک است", value=False)
+        is_suspicious_check = ft.Checkbox(label="⚠️ نقطه مشکوک", value=False)
         notes_list_view = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO)
 
         def add_note(e):
@@ -200,35 +245,33 @@ def main(page: ft.Page):
                 notes_list_view.controls.append(card)
             page.update()
 
-        # بخش ارسال پیشنهاد به ادمین
-        sug_input = ft.TextField(label="ارسال پیشنهاد یا پیام به ادمین...", multiline=True, rows=2)
+        sug_input = ft.TextField(label="ارسال پیشنهاد به ادمین...", multiline=True, rows=2)
         def send_suggestion(e):
             if sug_input.value.strip():
                 app_state["user_data"][active_user]["suggestions"].append(sanitize_input(sug_input.value))
                 sug_input.value = ""
-                page.snack_bar = ft.SnackBar(ft.Text("✅ پیشنهاد شما با موفقیت به ادمین ارسال شد."))
+                page.snack_bar = ft.SnackBar(ft.Text("✅ پیشنهاد ارسال شد."))
                 page.snack_bar.open = True
                 page.update()
 
-        # چیدمان اصلی پنل اختصاصی
         user_panel = ft.Column([
             ft.Row([
-                ft.Text(f"👤 پنل اختصاصی: {active_user}", size=16, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
+                ft.Text("📱 محیط کاربری سامانه رادار", size=15, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
                 ft.Row([
-                    ft.IconButton(ft.icons.BRIGHTNESS_4, on_click=toggle_theme, tooltip="تغییر تم تاریک/روشن"),
-                    ft.IconButton(ft.icons.LOGOUT, on_click=lambda e: main(page), tooltip="خروج")
+                    ft.IconButton(ft.icons.BRIGHTNESS_4, on_click=toggle_theme, tooltip="تم تاریک/روشن"),
+                    ft.IconButton(ft.icons.LOGOUT, on_click=logout_user, tooltip="خروج")
                 ])
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             clock_text,
             ft.Divider(),
-            ft.Switch(label="🔐 فعال‌سازی تایید دو مرحله‌ای (2FA)", value=app_state["user_data"][active_user]["2fa_enabled"], on_change=toggle_2fa),
+            ft.Switch(label="🔐 تایید دو مرحله‌ای (2FA)", value=app_state["user_data"][active_user]["2fa_enabled"], on_change=toggle_2fa),
             ft.Divider(),
-            ft.Text("📌 ثبت یادداشت و نقاط مشکوک (ذخیره دائمی):", size=14, weight=ft.FontWeight.BOLD),
+            ft.Text("📌 ثبت یادداشت و نقاط مشکوک روی نقشه:", size=13, weight=ft.FontWeight.BOLD),
             ft.Row([note_input, is_suspicious_check]),
-            ft.ElevatedButton("ثبت یادداشت روی نقشه", on_click=add_note, icon=ft.icons.ADD_LOCATION),
+            ft.ElevatedButton("ثبت یادداشت", on_click=add_note, icon=ft.icons.ADD_LOCATION),
             notes_list_view,
             ft.Divider(),
-            ft.Text("📩 ارسال پیشنهاد به ادمین:", size=14, weight=ft.FontWeight.BOLD),
+            ft.Text("📩 ارسال پیام / پیشنهاد به مدیریت:", size=13, weight=ft.FontWeight.BOLD),
             sug_input,
             ft.ElevatedButton("ارسال پیام", on_click=send_suggestion, icon=ft.icons.SEND)
         ], scroll=ft.ScrollMode.AUTO)
