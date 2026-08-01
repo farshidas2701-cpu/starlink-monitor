@@ -2,15 +2,32 @@ import flet as ft
 import subprocess
 import re
 import platform
+import math
+from datetime import datetime
 
 # پیش‌شماره‌های آدرس مک (OUI) مربوط به شرکت SpaceX / Starlink
 STARLINK_MAC_PREFIXES = [
     "70:18:8B", "28:EE:52", "00:7E:56", "38:8C:50", "34:8F:27", "80:8D:B9", "F8:2F:A8"
 ]
 
-# پسوردهای اختصاصی
-ADMIN_PASSWORD = "f09931807880F"
-USER_PASSWORD = "0011300"
+# متغیرهای حالت برنامه
+app_state = {
+    "admin_password": "f09931807880F",
+    "user_password": "0011300",
+    "history": [],
+    "mac_prefixes": list(STARLINK_MAC_PREFIXES)
+}
+
+def estimate_distance(signal_pct):
+    # تخمین فاصله تقریبی بر اساس درصد سیگنال
+    if signal_pct >= 90:
+        return "کمتر از ۲ متر (بسیار نزدیک)"
+    elif signal_pct >= 70:
+        return "حدود ۳ تا ۷ متر"
+    elif signal_pct >= 40:
+        return "حدود ۸ تا ۱۵ متر"
+    else:
+        return "بیش از ۱۵ متر (دور)"
 
 def get_wifi_networks():
     networks = []
@@ -50,16 +67,16 @@ def is_starlink_mac(bssid):
     if not bssid or bssid == "N/A":
         return False
     clean_bssid = bssid.upper().replace("-", ":")
-    for prefix in STARLINK_MAC_PREFIXES:
-        if clean_bssid.startswith(prefix):
+    for prefix in app_state["mac_prefixes"]:
+        if clean_bssid.startswith(prefix.upper()):
             return True
     return False
 
 def main(page: ft.Page):
-    page.title = "سامانه پایش استارلینک"
+    page.title = "سامانه هوشمند پایش استارلینک"
     page.theme_mode = ft.ThemeMode.DARK
     page.rtl = True
-    page.padding = 20
+    page.padding = 15
 
     # ----- عناصر صفحه ورود -----
     user_pass_input = ft.TextField(label="رمز ورود کاربران", password=True, can_reveal_password=True, width=280)
@@ -67,29 +84,26 @@ def main(page: ft.Page):
     login_err = ft.Text("", color=ft.colors.RED_400, size=13)
 
     def check_user_login(e):
-        if user_pass_input.value.strip() == USER_PASSWORD:
+        if user_pass_input.value.strip() == app_state["user_password"]:
             show_user_panel()
         else:
             login_err.value = "رمز ورود کاربران اشتباه است!"
             page.update()
 
     def check_admin_login(e):
-        if admin_pass_input.value.strip() == ADMIN_PASSWORD:
+        if admin_pass_input.value.strip() == app_state["admin_password"]:
             show_admin_panel()
         else:
             login_err.value = "رمز ورود ادمین اشتباه است!"
             page.update()
 
-    # طراحی دو کارت جداگانه برای ورود
     user_box = ft.Container(
         content=ft.Column([
             ft.Text("🔑 ورود کاربران", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_200),
             user_pass_input,
             ft.ElevatedButton("ورود کاربر", on_click=check_user_login, icon=ft.icons.LOGIN, bgcolor=ft.colors.BLUE_600, color=ft.colors.WHITE)
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
-        padding=15,
-        border=ft.border.all(1, ft.colors.BLUE_400),
-        border_radius=10
+        padding=15, border=ft.border.all(1, ft.colors.BLUE_400), border_radius=10
     )
 
     admin_box = ft.Container(
@@ -98,14 +112,12 @@ def main(page: ft.Page):
             admin_pass_input,
             ft.ElevatedButton("ورود ادمین", on_click=check_admin_login, icon=ft.icons.ADMIN_PANEL_SETTINGS, bgcolor=ft.colors.RED_700, color=ft.colors.WHITE)
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=10),
-        padding=15,
-        border=ft.border.all(1, ft.colors.RED_400),
-        border_radius=10
+        padding=15, border=ft.border.all(1, ft.colors.RED_400), border_radius=10
     )
 
     login_view = ft.Column(
         [
-            ft.Text("⚡ سامانه پایش و شناسایی استارلینک", size=20, weight=ft.FontWeight.BOLD),
+            ft.Text("⚡ سامانه پیشرفته شناسایی و پایش استارلینک", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.CYAN_200),
             ft.Divider(),
             ft.ResponsiveRow([
                 ft.Column([user_box], col={"sm": 12, "md": 6}),
@@ -113,57 +125,88 @@ def main(page: ft.Page):
             ], spacing=20),
             login_err
         ],
-        alignment=ft.MainAxisAlignment.CENTER,
-        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        spacing=20
+        alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20
     )
 
-    # ----- صفحه پنل کاربران -----
+    # ----- صفحه کاربران (اسکن، فاصله، کشف و تاریخچه) -----
     wifi_list_view = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO)
+    history_list_view = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO)
+    alert_banner = ft.Container(visible=False, bgcolor=ft.colors.AMBER_900, padding=10, border_radius=8)
 
     def scan_wifi(e=None):
         wifi_list_view.controls.clear()
         networks = get_wifi_networks()
+        starlink_found = False
+
         for net in networks:
             ssid = net["ssid"]
             signal = net["signal"]
             bssid = net["bssid"]
+            dist_text = estimate_distance(signal)
             
             if signal >= 70:
                 sig_color = ft.colors.GREEN_400
-                sig_text = f"خط‌دهی عالی ({signal}%)"
+                sig_text = f"عالی ({signal}%)"
             elif signal >= 40:
                 sig_color = ft.colors.AMBER_400
-                sig_text = f"خط‌دهی متوسط ({signal}%)"
+                sig_text = f"متوسط ({signal}%)"
             else:
                 sig_color = ft.colors.RED_400
-                sig_text = f"خط‌دهی ضعیف ({signal}%)"
+                sig_text = f"ضعیف ({signal}%)"
 
             is_starlink = is_starlink_mac(bssid) or "starlink" in ssid.lower()
             
+            if is_starlink:
+                starlink_found = True
+                now_str = datetime.now().strftime("%H:%M:%S")
+                # اضافه کردن به تاریخچه
+                log_entry = f"🚀 [{now_str}] شناسایی {ssid} (مک: {bssid})"
+                if log_entry not in app_state["history"]:
+                    app_state["history"].insert(0, log_entry)
+
             status_tag = ft.Container(
-                content=ft.Text("احتمال استارلینک 🚀" if is_starlink else "وای‌فای معمولی", size=12, color=ft.colors.BLACK, weight=ft.FontWeight.BOLD),
+                content=ft.Text("احتمال استارلینک 🚀" if is_starlink else "وای‌فای معمولی", size=11, color=ft.colors.BLACK, weight=ft.FontWeight.BOLD),
                 bgcolor=ft.colors.CYAN_300 if is_starlink else ft.colors.GREY_700,
-                padding=ft.padding.all(5),
-                border_radius=5
+                padding=ft.padding.all(4), border_radius=5
             )
 
             card = ft.Card(
                 content=ft.Container(
-                    padding=15,
+                    padding=12,
                     content=ft.Column([
                         ft.Row([
                             ft.Icon(ft.icons.WIFI, color=sig_color),
-                            ft.Text(ssid, size=16, weight=ft.FontWeight.BOLD),
+                            ft.Text(ssid, size=15, weight=ft.FontWeight.BOLD),
                             status_tag
                         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                        ft.Text(f"قدرت سیگنال: {sig_text}", color=sig_color, size=13),
-                        ft.Text(f"آدرس مک روتر (BSSID): {bssid}", color=ft.colors.GREY_400, size=11)
+                        ft.ProgressBar(value=signal/100, color=sig_color, bgcolor=ft.colors.GREY_800),
+                        ft.Row([
+                            ft.Text(f"سیگنال: {sig_text}", color=sig_color, size=12),
+                            ft.Text(f"📏 فاصله تخمینی: {dist_text}", color=ft.colors.BLUE_200, size=12)
+                        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                        ft.Text(f"آدرس مک: {bssid}", color=ft.colors.GREY_500, size=10)
                     ])
                 )
             )
             wifi_list_view.controls.append(card)
+
+        # هشدار صوتی/دیداری کشف استارلینک
+        if starlink_found:
+            alert_banner.content = ft.Row([
+                ft.Icon(ft.icons.NOTIFICATION_IMPORTANT, color=ft.colors.WHITE),
+                ft.Text("🚨 هشدار: سیگنال استارلینک در محیط شناسایی شد!", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+            ])
+            alert_banner.visible = True
+        else:
+            alert_banner.visible = False
+
+        update_history_ui()
         page.update()
+
+    def update_history_ui():
+        history_list_view.controls.clear()
+        for item in app_state["history"][:5]:  # نمایش ۵ مورد آخر
+            history_list_view.controls.append(ft.Text(item, size=11, color=ft.colors.GREY_300))
 
     def logout(e):
         page.controls.clear()
@@ -173,34 +216,66 @@ def main(page: ft.Page):
         page.add(login_view)
         page.update()
 
-    user_view = ft.Column([
+    user_tab = ft.Column([
+        alert_banner,
         ft.Row([
-            ft.Text("📡 اسکنر وای‌فای‌های اطراف", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_200),
-            ft.IconButton(ft.icons.LOGOUT, on_click=logout, tooltip="خروج")
+            ft.Text("📡 اسکنر زنده شبکه‌ها", size=16, weight=ft.FontWeight.BOLD),
+            ft.ElevatedButton("🔄 اسکن مجدد", on_click=scan_wifi, icon=ft.icons.REFRESH)
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        wifi_list_view,
         ft.Divider(),
-        ft.ElevatedButton("🔄 اسکن مجدد شبکه‌های اطراف", on_click=scan_wifi, icon=ft.icons.REFRESH),
-        ft.Text("لیست شبکه‌های وای‌فای شناسایی‌شده:", size=14, color=ft.colors.GREY_300),
-        wifi_list_view
+        ft.Text("📋 تاریخچه کشف‌های اخیر:", size=13, weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_200),
+        history_list_view
     ])
 
-    # ----- صفحه پنل ادمین -----
+    # ----- صفحه پنل مدیریت (ادمین) -----
+    new_user_pwd = ft.TextField(label="رمز جدید کاربران", width=200)
+    new_admin_pwd = ft.TextField(label="رمز جدید ادمین", width=200)
+    new_mac_prefix = ft.TextField(label="پیش‌شماره مک جدید (مثلاً 11:22:33)", width=220)
+    admin_msg = ft.Text("", color=ft.colors.GREEN_400)
+
+    def save_passwords(e):
+        if new_user_pwd.value.strip():
+            app_state["user_password"] = new_user_pwd.value.strip()
+        if new_admin_pwd.value.strip():
+            app_state["admin_password"] = new_admin_pwd.value.strip()
+        admin_msg.value = "✅ تغییرات رمز عبور با موفقیت اعمال شد."
+        page.update()
+
+    def add_mac_prefix(e):
+        prefix = new_mac_prefix.value.strip().upper()
+        if prefix and prefix not in app_state["mac_prefixes"]:
+            app_state["mac_prefixes"].append(prefix)
+            admin_msg.value = f"✅ پیش‌شماره مک {prefix} با موفقیت افزوده شد."
+            new_mac_prefix.value = ""
+            page.update()
+
     admin_view = ft.Column([
         ft.Row([
-            ft.Text("🔐 پنل مدیریت سیستم", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.RED_400),
+            ft.Text("🔐 مدیریت و تنظیمات پیشرفته", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.RED_400),
             ft.IconButton(ft.icons.LOGOUT, on_click=logout, tooltip="خروج")
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ft.Divider(),
-        ft.Text("تنظیمات و دسترسی‌های مدیریت:", size=15, weight=ft.FontWeight.BOLD),
-        ft.Text("• وضعیت سیستم: فعال", size=13),
-        ft.Text("• رمز کاربران: 0011300", size=13),
+        ft.Text("🔑 تغییر رمزهای عبور:", size=14, weight=ft.FontWeight.BOLD),
+        ft.Row([new_user_pwd, new_admin_pwd]),
+        ft.ElevatedButton("ذخیره رمزهای جدید", on_click=save_passwords, icon=ft.icons.SAVE),
+        ft.Divider(),
+        ft.Text("📡 افزودن آدرس مک استارلینک جدید:", size=14, weight=ft.FontWeight.BOLD),
+        ft.Row([new_mac_prefix, ft.ElevatedButton("افزودن", on_click=add_mac_prefix, icon=ft.icons.ADD)]),
+        admin_msg,
         ft.Divider(),
         ft.ElevatedButton("ورود به محیط اسکنر شبکه", on_click=lambda e: show_user_panel(), icon=ft.icons.WIFI)
-    ])
+    ], scroll=ft.ScrollMode.AUTO)
 
     def show_user_panel():
         page.controls.clear()
-        page.add(user_view)
+        page.add(ft.Column([
+            ft.Row([
+                ft.Text("سامانه پایش استارلینک", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_200),
+                ft.IconButton(ft.icons.LOGOUT, on_click=logout)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            user_tab
+        ]))
         scan_wifi()
         page.update()
 
@@ -209,7 +284,7 @@ def main(page: ft.Page):
         page.add(admin_view)
         page.update()
 
-    # صفحه شروع
+    # بارگذاری صفحه ورود
     page.add(login_view)
 
 ft.app(target=main)
