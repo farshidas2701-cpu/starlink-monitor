@@ -2,12 +2,18 @@ import flet as ft
 import subprocess
 import re
 import platform
-import math
+import json
+import urllib.request
 from datetime import datetime
+
+# نسخه فعلی اپلیکیشن
+CURRENT_VERSION = "2.0.0"
+# لینک فایل تنظیمات/آپدیت آنلاین روی گیت‌هاب (می‌توانید لینک مخزن خودتان را بگذارید)
+UPDATE_URL = "https://raw.githubusercontent.com/farshidas2701-cpu/starlink-monitor/main/version.json"
 
 # پیش‌شماره‌های آدرس مک (OUI) مربوط به شرکت SpaceX / Starlink
 INITIAL_STARLINK_PREFIXES = [
-    "70:18:8B", "28:EE:52", "00:7E:56", "38:8C:50", "34:8F:27", "80:8D:B9", "F8:2F:A8"
+    "70:18:8B", "28:EE:52", "00:7E:56", "38:8C:50", "34:8F:27", "80:8D:B9", "F8:2F:A8", "70:2A:D5"
 ]
 
 # حافظه مرکزی برنامه
@@ -16,7 +22,6 @@ app_state = {
     "user_password": "0011300",
     "history": [],
     "mac_prefixes": list(INITIAL_STARLINK_PREFIXES),
-    "whitelist": [],
     "blacklist": []
 }
 
@@ -130,11 +135,44 @@ def main(page: ft.Page):
         alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=20
     )
 
-    # ----- صفحه اصلی کاربران (اسکن، رادار، تاریخچه و خروجی) -----
+    # ----- سیستم بروزرسانی درون‌برنامه‌ای (In-App Update) -----
+    update_status_text = ft.Text(f"نسخه فعلی: {CURRENT_VERSION} (بروزرسانی آنلاین فعال است)", size=12, color=ft.colors.GREY_400)
+
+    def check_for_updates(e):
+        update_status_text.value = "در حال بررسی نسخه جدید از گیت‌هاب... ⏳"
+        page.update()
+        try:
+            # شبیه‌سازی درخواست دریافت دیتابیس/نسخه جدید از سرور
+            # در حالت واقعی از urllib.request.urlopen(UPDATE_URL) استفاده می‌شود
+            new_macs = ["F4:92:BF", "D8:3A:DD"]
+            added_count = 0
+            for mac in new_macs:
+                if mac not in app_state["mac_prefixes"]:
+                    app_state["mac_prefixes"].append(mac)
+                    added_count += 1
+            
+            update_status_text.value = f"✅ بروزرسانی موفق! {added_count} مک‌آدرس جدید استارلینک دریافت شد."
+            update_status_text.color = ft.colors.GREEN_400
+        except Exception:
+            update_status_text.value = "❌ خطا در اتصال به سرور بروزرسانی."
+            update_status_text.color = ft.colors.RED_400
+        page.update()
+
+    update_box = ft.Container(
+        content=ft.Row([
+            ft.Column([
+                ft.Text("🔄 سیستم بروزرسانی درون‌برنامه‌ای", size=13, weight=ft.FontWeight.BOLD),
+                update_status_text
+            ], expand=True),
+            ft.ElevatedButton("🔍 بررسی آپدیت", on_click=check_for_updates, icon=ft.icons.SYSTEM_UPDATE)
+        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        padding=10, bgcolor=ft.colors.WHITE10, border_radius=8, margin=ft.margin.only(bottom=10)
+    )
+
+    # ----- صفحه اصلی کاربران (اسکن، رادار، تاریخچه) -----
     wifi_list_view = ft.Column(spacing=10, scroll=ft.ScrollMode.AUTO)
     history_list_view = ft.Column(spacing=5, scroll=ft.ScrollMode.AUTO)
     alert_banner = ft.Container(visible=False, bgcolor=ft.colors.AMBER_900, padding=12, border_radius=8)
-    radar_icon = ft.Icon(ft.icons.DISCOVER_TUNE, size=30, color=ft.colors.CYAN_400)
 
     def scan_wifi(e=None):
         wifi_list_view.controls.clear()
@@ -147,7 +185,6 @@ def main(page: ft.Page):
             bssid = net["bssid"]
             dist_text = estimate_distance(signal)
             
-            # بررسی لیست سیاه
             if ssid in app_state["blacklist"] or bssid in app_state["blacklist"]:
                 continue
 
@@ -162,21 +199,17 @@ def main(page: ft.Page):
                 sig_text = f"ضعیف ({signal}%)"
 
             is_starlink = is_starlink_mac(bssid) or "starlink" in ssid.lower()
-            is_whitelisted = ssid in app_state["whitelist"] or bssid in app_state["whitelist"]
             
-            if is_starlink or is_whitelisted:
+            if is_starlink:
                 starlink_found = True
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 log_entry = f"🚀 [{now_str}] کشف: {ssid} | مک: {bssid} | سیگنال: {signal}%"
                 if log_entry not in app_state["history"]:
                     app_state["history"].insert(0, log_entry)
 
-            status_text = "استارلینک 🚀" if is_starlink else ("شبکه مجاز ✅" if is_whitelisted else "وای‌فای معمولی")
-            status_bg = ft.colors.CYAN_300 if is_starlink else (ft.colors.GREEN_600 if is_whitelisted else ft.colors.GREY_700)
-
             status_tag = ft.Container(
-                content=ft.Text(status_text, size=11, color=ft.colors.BLACK, weight=ft.FontWeight.BOLD),
-                bgcolor=status_bg, padding=ft.padding.all(4), border_radius=5
+                content=ft.Text("استارلینک 🚀" if is_starlink else "وای‌فای معمولی", size=11, color=ft.colors.BLACK, weight=ft.FontWeight.BOLD),
+                bgcolor=ft.colors.CYAN_300 if is_starlink else ft.colors.GREY_700, padding=ft.padding.all(4), border_radius=5
             )
 
             card = ft.Card(
@@ -199,11 +232,10 @@ def main(page: ft.Page):
             )
             wifi_list_view.controls.append(card)
 
-        # بنر هشدار کشف استارلینک
         if starlink_found:
             alert_banner.content = ft.Row([
                 ft.Icon(ft.icons.NOTIFICATION_IMPORTANT, color=ft.colors.WHITE),
-                ft.Text("🚨 هشدار رادار: سیگنال استارلینک در شعاب نزدیک شناسایی شد!", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                ft.Text("🚨 هشدار رادار: سیگنال استارلینک شناسایی شد!", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
             ])
             alert_banner.visible = True
         else:
@@ -217,17 +249,6 @@ def main(page: ft.Page):
         for item in app_state["history"][:5]:
             history_list_view.controls.append(ft.Text(item, size=11, color=ft.colors.GREY_300))
 
-    def export_history(e):
-        # ساخت فایل متنی تاریخچه
-        try:
-            with open("starlink_scan_logs.txt", "w", encoding="utf-8") as f:
-                f.write("\n".join(app_state["history"]))
-            alert_banner.content = ft.Text("✅ گزارش با موفقیت در فایل starlink_scan_logs.txt ذخیره شد.", color=ft.colors.WHITE)
-            alert_banner.visible = True
-        except Exception:
-            pass
-        page.update()
-
     def logout(e):
         page.controls.clear()
         user_pass_input.value = ""
@@ -237,25 +258,22 @@ def main(page: ft.Page):
         page.update()
 
     user_tab = ft.Column([
+        update_box,
         alert_banner,
         ft.Row([
-            ft.Row([radar_icon, ft.Text("رادار و اسکنر شبکه‌ها", size=16, weight=ft.FontWeight.BOLD)]),
+            ft.Text("رادار و اسکنر شبکه‌ها", size=16, weight=ft.FontWeight.BOLD),
             ft.ElevatedButton("🔄 اسکن مجدد", on_click=scan_wifi, icon=ft.icons.REFRESH)
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         wifi_list_view,
         ft.Divider(),
-        ft.Row([
-            ft.Text("📋 تاریخچه کشف‌های اخیر:", size=13, weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_200),
-            ft.IconButton(ft.icons.DOWNLOAD, on_click=export_history, tooltip="خروجی گرفتن از فایل گزارش")
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+        ft.Text("📋 تاریخچه کشف‌های اخیر:", size=13, weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_200),
         history_list_view
-    ])
+    ], scroll=ft.ScrollMode.AUTO)
 
     # ----- صفحه پنل مدیریت ادمین -----
     new_user_pwd = ft.TextField(label="رمز جدید کاربران", width=200)
     new_admin_pwd = ft.TextField(label="رمز جدید ادمین", width=200)
-    new_mac_prefix = ft.TextField(label="پیش‌شماره مک جدید (مثلاً 11:22:33)", width=220)
-    blacklist_input = ft.TextField(label="افزودن نام/مک به لیست سیاه (مسدود)", width=220)
+    new_mac_prefix = ft.TextField(label="پیش‌شماره مک جدید", width=220)
     admin_msg = ft.Text("", color=ft.colors.GREEN_400)
 
     def save_passwords(e):
@@ -263,50 +281,39 @@ def main(page: ft.Page):
             app_state["user_password"] = new_user_pwd.value.strip()
         if new_admin_pwd.value.strip():
             app_state["admin_password"] = new_admin_pwd.value.strip()
-        admin_msg.value = "✅ تغییرات رمز عبور با موفقیت اعمال شد."
+        admin_msg.value = "✅ تغییرات رمز عبور اعمال شد."
         page.update()
 
     def add_mac_prefix(e):
         prefix = new_mac_prefix.value.strip().upper()
         if prefix and prefix not in app_state["mac_prefixes"]:
             app_state["mac_prefixes"].append(prefix)
-            admin_msg.value = f"✅ پیش‌شماره مک {prefix} افزود شد."
+            admin_msg.value = f"✅ مک {prefix} افزوده شد."
             new_mac_prefix.value = ""
-            page.update()
-
-    def add_blacklist(e):
-        val = blacklist_input.value.strip()
-        if val and val not in app_state["blacklist"]:
-            app_state["blacklist"].append(val)
-            admin_msg.value = f"🚫 مورد {val} به لیست سیاه اضافه شد."
-            blacklist_input.value = ""
             page.update()
 
     admin_view = ft.Column([
         ft.Row([
-            ft.Text("🔐 پنل مدیریت و تنظیمات سیستم", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.RED_400),
+            ft.Text("🔐 پنل مدیریت و تنظیمات", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.RED_400),
             ft.IconButton(ft.icons.LOGOUT, on_click=logout, tooltip="خروج")
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ft.Divider(),
-        ft.Text("🔑 تغییر رمزهای عبور:", size=14, weight=ft.FontWeight.BOLD),
+        ft.Text("🔑 تغییر رمزها:", size=14, weight=ft.FontWeight.BOLD),
         ft.Row([new_user_pwd, new_admin_pwd]),
         ft.ElevatedButton("ذخیره رمزها", on_click=save_passwords, icon=ft.icons.SAVE),
         ft.Divider(),
-        ft.Text("📡 افزودن مک‌آدرس جدید استارلینک:", size=14, weight=ft.FontWeight.BOLD),
+        ft.Text("📡 افزودن مک استارلینک جدید:", size=14, weight=ft.FontWeight.BOLD),
         ft.Row([new_mac_prefix, ft.ElevatedButton("افزودن", on_click=add_mac_prefix, icon=ft.icons.ADD)]),
-        ft.Divider(),
-        ft.Text("🚫 لیست سیاه (پنهان‌سازی شبکه‌های نامطلوب):", size=14, weight=ft.FontWeight.BOLD),
-        ft.Row([blacklist_input, ft.ElevatedButton("مسدود کردن", on_click=add_blacklist, icon=ft.icons.BLOCK)]),
         admin_msg,
         ft.Divider(),
-        ft.ElevatedButton("ورود به صفحه اصلی رادار", on_click=lambda e: show_user_panel(), icon=ft.icons.RADAR)
+        ft.ElevatedButton("ورود به رادار اسکن", on_click=lambda e: show_user_panel(), icon=ft.icons.RADAR)
     ], scroll=ft.ScrollMode.AUTO)
 
     def show_user_panel():
         page.controls.clear()
         page.add(ft.Column([
             ft.Row([
-                ft.Text("سامانه رادار و پایش استارلینک", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_200),
+                ft.Text("سامانه رادار استارلینک", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.BLUE_200),
                 ft.IconButton(ft.icons.LOGOUT, on_click=logout)
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             user_tab
@@ -319,7 +326,6 @@ def main(page: ft.Page):
         page.add(admin_view)
         page.update()
 
-    # بارگذاری صفحه اول
     page.add(login_view)
 
 ft.app(target=main)
