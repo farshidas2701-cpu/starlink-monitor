@@ -5,10 +5,13 @@ import platform
 import json
 import urllib.request
 import os
+import sys
+import hashlib
+import time
 from datetime import datetime
 
 # نسخه فعلی اپلیکیشن
-CURRENT_VERSION = "2.1.0"
+CURRENT_VERSION = "2.2.0-SECURE"
 UPDATE_URL = "https://raw.githubusercontent.com/farshidas2701-cpu/starlink-monitor/main/version.json"
 
 # پیش‌شماره‌های آدرس مک (OUI) مربوط به شرکت SpaceX / Starlink
@@ -16,15 +19,39 @@ INITIAL_STARLINK_PREFIXES = [
     "70:18:8B", "28:EE:52", "00:7E:56", "38:8C:50", "34:8F:27", "80:8D:B9", "F8:2F:A8", "70:2A:D5"
 ]
 
-# حافظه مرکزی برنامه
+# هش SHA-256 رمزهای عبور اولیه برای امنیت بیشتر
+# رمز اولیه کاربر: 0011300
+# رمز اولیه ادمین: f09931807880F
+DEFAULT_USER_HASH = hashlib.sha256("0011300".encode()).hexdigest()
+DEFAULT_ADMIN_HASH = hashlib.sha256("f09931807880F".encode()).hexdigest()
+
 app_state = {
-    "admin_password": "f09931807880F",
-    "user_password": "0011300",
+    "admin_hash": DEFAULT_ADMIN_HASH,
+    "user_hash": DEFAULT_USER_HASH,
     "history": [],
     "mac_prefixes": list(INITIAL_STARLINK_PREFIXES),
-    "blacklist": [],
-    "filter_starlink_only": False
+    "filter_starlink_only": False,
+    "failed_attempts": 0,
+    "lockout_until": 0
 }
+
+# تابع هش کردن ورودی‌ها
+def hash_pass(password: str) -> str:
+    return hashlib.sha256(password.strip().encode()).hexdigest()
+
+# بررسی امنیت محیط اجرا (ضد دیباگ / ضد مهندسی معکوس)
+def check_environment_security():
+    try:
+        # تشخیص دیباگر در پایتون
+        if sys.gettrace() is not None:
+            return False
+    except Exception:
+        pass
+    return True
+
+def sanitize_input(text: str) -> str:
+    # پاک‌سازی ورودی‌ها از کاراکترهای خطرناک
+    return re.sub(r'[\';\"\\<>]', '', text)
 
 def estimate_distance(signal_pct):
     if signal_pct >= 90:
@@ -62,7 +89,6 @@ def get_wifi_networks():
     except Exception:
         pass
     
-    # شبکه‌های نمونه در صورت عدم دسترسی سخت‌افزاری مستقیم
     if not networks:
         networks = [
             {"ssid": "Starlink-Home-5G", "signal": 88, "bssid": "70:18:8B:A1:B2:C3"},
@@ -81,12 +107,16 @@ def is_starlink_mac(bssid):
     return False
 
 def main(page: ft.Page):
-    page.title = "سامانه هوشمند پایش و رادار استارلینک (مقاوم در برابر اینترنت ملی)"
+    # تست دیباگ در ابتدای اجرا
+    if not check_environment_security():
+        page.add(ft.Text("❌ خطای امنیتی: محیط غیرمجاز تشخیص داده شد.", color=ft.colors.RED))
+        return
+
+    page.title = "سامانه ایمن پایش و رادار استارلینک"
     page.theme_mode = ft.ThemeMode.DARK
     page.rtl = True
     page.padding = 15
 
-    # صداهای هشدار لوکال
     audio_alert = ft.Audio(
         src="https://www.soundjay.com/buttons/sounds/button-3.mp3",
         autoplay=False
@@ -98,19 +128,43 @@ def main(page: ft.Page):
     admin_pass_input = ft.TextField(label="رمز ورود ادمین", password=True, can_reveal_password=True, width=280)
     login_err = ft.Text("", color=ft.colors.RED_400, size=13)
 
+    def check_lockout():
+        if time.time() < app_state["lockout_until"]:
+            remaining = int(app_state["lockout_until"] - time.time())
+            login_err.value = f"⛔ حساب به دلیل تلاش‌های ناموفق قفل شده است. {remaining} ثانیه صبر کنید."
+            page.update()
+            return True
+        return False
+
+    def handle_failed_attempt():
+        app_state["failed_attempts"] += 1
+        if app_state["failed_attempts"] >= 3:
+            app_state["lockout_until"] = time.time() + 30
+            app_state["failed_attempts"] = 0
+            login_err.value = "⛔ ۳ بار تلاش اشتباه! سیستم ورود ۳۰ ثانیه قفل شد."
+        else:
+            login_err.value = f"رمز عبور اشتباه است! (تلاش‌های باقی‌مانده: {3 - app_state['failed_attempts']})"
+        page.update()
+
     def check_user_login(e):
-        if user_pass_input.value.strip() == app_state["user_password"]:
+        if check_lockout():
+            return
+        input_pass = sanitize_input(user_pass_input.value)
+        if hash_pass(input_pass) == app_state["user_hash"]:
+            app_state["failed_attempts"] = 0
             show_user_panel()
         else:
-            login_err.value = "رمز ورود کاربران اشتباه است!"
-            page.update()
+            handle_failed_attempt()
 
     def check_admin_login(e):
-        if admin_pass_input.value.strip() == app_state["admin_password"]:
+        if check_lockout():
+            return
+        input_pass = sanitize_input(admin_pass_input.value)
+        if hash_pass(input_pass) == app_state["admin_hash"]:
+            app_state["failed_attempts"] = 0
             show_admin_panel()
         else:
-            login_err.value = "رمز ورود ادمین اشتباه است!"
-            page.update()
+            handle_failed_attempt()
 
     user_box = ft.Container(
         content=ft.Column([
@@ -132,9 +186,9 @@ def main(page: ft.Page):
 
     login_view = ft.Column(
         [
-            ft.Icon(ft.icons.RADAR, size=50, color=ft.colors.CYAN_400),
-            ft.Text("⚡ سامانه هوشمند پایش و رادار استارلینک", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.CYAN_200),
-            ft.Text("🌐 فعال و قابل استفاده حتی در شرایط اینترنت ملی و قطعی شبکه", size=11, color=ft.colors.GREEN_300),
+            ft.Icon(ft.icons.SECURITY, size=50, color=ft.colors.CYAN_400),
+            ft.Text("⚡ سامانه ایمن پایش و رادار استارلینک", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.CYAN_200),
+            ft.Text("🛡️ مجهز به لایه حفاظتی ضد نفوذ و هش رمزنگاری شده", size=11, color=ft.colors.GREEN_300),
             ft.Divider(),
             ft.ResponsiveRow([
                 ft.Column([user_box], col={"sm": 12, "md": 6}),
@@ -146,7 +200,7 @@ def main(page: ft.Page):
     )
 
     # ----- سیستم بروزرسانی آنلاین و آفلاین -----
-    update_status_text = ft.Text(f"نسخه: {CURRENT_VERSION} (حالت آفلاین و آنلاین فعال)", size=12, color=ft.colors.GREY_400)
+    update_status_text = ft.Text(f"نسخه: {CURRENT_VERSION}", size=12, color=ft.colors.GREY_400)
 
     def check_for_updates(e):
         update_status_text.value = "در حال بررسی ارتباط... ⏳"
@@ -158,13 +212,14 @@ def main(page: ft.Page):
                 new_macs = data.get("starlink_macs", [])
                 added_count = 0
                 for mac in new_macs:
-                    if mac not in app_state["mac_prefixes"]:
-                        app_state["mac_prefixes"].append(mac)
+                    mac_clean = sanitize_input(mac)
+                    if mac_clean not in app_state["mac_prefixes"]:
+                        app_state["mac_prefixes"].append(mac_clean)
                         added_count += 1
-                update_status_text.value = f"✅ آنلاین: {added_count} مک جدید دریافت شد."
+                update_status_text.value = f"✅ دریافت ایمن: {added_count} مک جدید افزوده شد."
                 update_status_text.color = ft.colors.GREEN_400
         except Exception:
-            update_status_text.value = "📡 شبکه بین‌الملل در دسترس نیست (برنامه در حالت آفلاین کامل کار می‌کند)."
+            update_status_text.value = "📡 شبکه در دسترس نیست (عملکرد آفلاین کامل فعال است)."
             update_status_text.color = ft.colors.AMBER_400
         page.update()
 
@@ -192,7 +247,7 @@ def main(page: ft.Page):
         try:
             file_path = "starlink_scan_report.txt"
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write("--- گزارش سامانه پایش و رادار استارلینک ---\n")
+                f.write("--- گزارش ایمن سامانه پایش و رادار استارلینک ---\n")
                 for item in app_state["history"]:
                     f.write(item + "\n")
             page.snack_bar = ft.SnackBar(ft.Text(f"✅ گزارش در فایل {file_path} ذخیره شد."))
@@ -208,9 +263,9 @@ def main(page: ft.Page):
         starlink_found = False
 
         for net in networks:
-            ssid = net["ssid"]
+            ssid = sanitize_input(net["ssid"])
             signal = net["signal"]
-            bssid = net["bssid"]
+            bssid = sanitize_input(net["bssid"])
             dist_text = estimate_distance(signal)
             
             is_starlink = is_starlink_mac(bssid) or "starlink" in ssid.lower()
@@ -263,7 +318,7 @@ def main(page: ft.Page):
         if starlink_found:
             alert_banner.content = ft.Row([
                 ft.Icon(ft.icons.NOTIFICATION_IMPORTANT, color=ft.colors.WHITE),
-                ft.Text("🚨 هشدار رادار: تجهیزات استارلینک در نزدیک شماست!", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
+                ft.Text("🚨 هشدار رادار: تجهیزات استارلینک شناسایی شد!", color=ft.colors.WHITE, weight=ft.FontWeight.BOLD)
             ])
             alert_banner.visible = True
             try:
@@ -306,38 +361,42 @@ def main(page: ft.Page):
     ], scroll=ft.ScrollMode.AUTO)
 
     # ----- صفحه پنل مدیریت ادمین -----
-    new_user_pwd = ft.TextField(label="رمز جدید کاربران", width=200)
-    new_admin_pwd = ft.TextField(label="رمز جدید ادمین", width=200)
-    new_mac_prefix = ft.TextField(label="پیش‌شماره مک جدید (آفلاین)", width=220)
+    new_user_pwd = ft.TextField(label="رمز جدید کاربران", width=200, password=True)
+    new_admin_pwd = ft.TextField(label="رمز جدید ادمین", width=200, password=True)
+    new_mac_prefix = ft.TextField(label="پیش‌شماره مک جدید", width=220)
     admin_msg = ft.Text("", color=ft.colors.GREEN_400)
 
     def save_passwords(e):
-        if new_user_pwd.value.strip():
-            app_state["user_password"] = new_user_pwd.value.strip()
-        if new_admin_pwd.value.strip():
-            app_state["admin_password"] = new_admin_pwd.value.strip()
-        admin_msg.value = "✅ تغییرات رمز عبور اعمال شد."
+        u_val = sanitize_input(new_user_pwd.value)
+        a_val = sanitize_input(new_admin_pwd.value)
+        if u_val:
+            app_state["user_hash"] = hash_pass(u_val)
+        if a_val:
+            app_state["admin_hash"] = hash_pass(a_val)
+        admin_msg.value = "✅ تغییرات رمز عبور به‌صورت هش امن ذخیره شد."
+        new_user_pwd.value = ""
+        new_admin_pwd.value = ""
         page.update()
 
     def add_mac_prefix(e):
-        prefix = new_mac_prefix.value.strip().upper()
+        prefix = sanitize_input(new_mac_prefix.value).upper()
         if prefix and prefix not in app_state["mac_prefixes"]:
             app_state["mac_prefixes"].append(prefix)
-            admin_msg.value = f"✅ مک {prefix} به‌صورت آفلاین افزوده شد."
+            admin_msg.value = f"✅ مک {prefix} افزوده شد."
             new_mac_prefix.value = ""
             page.update()
 
     admin_view = ft.Column([
         ft.Row([
-            ft.Text("🔐 پنل مدیریت و تنظیمات", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.RED_400),
+            ft.Text("🔐 پنل مدیریت و تنظیمات امن", size=18, weight=ft.FontWeight.BOLD, color=ft.colors.RED_400),
             ft.IconButton(ft.icons.LOGOUT, on_click=logout, tooltip="خروج")
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
         ft.Divider(),
-        ft.Text("🔑 تغییر رمزها:", size=14, weight=ft.FontWeight.BOLD),
+        ft.Text("🔑 تغییر رمزها (ذخیره‌سازی به صورت Hash):", size=14, weight=ft.FontWeight.BOLD),
         ft.Row([new_user_pwd, new_admin_pwd]),
-        ft.ElevatedButton("ذخیره رمزها", on_click=save_passwords, icon=ft.icons.SAVE),
+        ft.ElevatedButton("ذخیره امن رمزها", on_click=save_passwords, icon=ft.icons.SAVE),
         ft.Divider(),
-        ft.Text("📡 افزودن دستی مک استارلینک (مخصوص شرایط اینترنت ملی):", size=14, weight=ft.FontWeight.BOLD),
+        ft.Text("📡 افزودن دستی مک استارلینک:", size=14, weight=ft.FontWeight.BOLD),
         ft.Row([new_mac_prefix, ft.ElevatedButton("افزودن", on_click=add_mac_prefix, icon=ft.icons.ADD)]),
         admin_msg,
         ft.Divider(),
