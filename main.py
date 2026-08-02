@@ -5,9 +5,8 @@ import time
 import random
 from datetime import datetime
 
-CURRENT_VERSION = "8.2.0-STABLE-FIXED"
+CURRENT_VERSION = "8.3.0-FINAL"
 
-# وضعیت عمومی برنامه
 user_store = {
     "notes": [],
     "ram_only_mode": False,
@@ -86,7 +85,7 @@ def main(page: ft.Page):
         return ft.Column([
             ft.Container(
                 content=ft.IconButton(
-                    icon=ft.icons.HELP_OUTLINE,
+                    icon="help_outline",
                     icon_color="white",
                     bgcolor="green600",
                     icon_size=16,
@@ -99,7 +98,7 @@ def main(page: ft.Page):
             ft.Text("راهنما", size=10, color="green300")
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2)
 
-    # ----- ۱. نقشه راداری آفلاین و مستقل از اینترنت -----
+    # ----- ۱. نقشه راداری آفلاین -----
     def open_offline_radar_map(e):
         center_lat, center_lng = 35.6892, 51.3890
         scale = 8000
@@ -109,7 +108,7 @@ def main(page: ft.Page):
             ft.Container(width=160, height=160, border=ft.border.all(1, "green800"), border_radius=80, alignment=ft.Alignment(0, 0)),
             ft.Container(width=80, height=80, border=ft.border.all(1, "green700"), border_radius=40, alignment=ft.Alignment(0, 0)),
             ft.Container(
-                content=ft.Icon(ft.icons.MY_LOCATION, color="green400", size=24),
+                content=ft.Icon(name="my_location", color="green400", size=24),
                 alignment=ft.Alignment(0, 0)
             )
         ]
@@ -129,7 +128,7 @@ def main(page: ft.Page):
             radar_elements.append(
                 ft.Container(
                     content=ft.Column([
-                        ft.Icon(ft.icons.LOCATION_ON, color=color, size=18),
+                        ft.Icon(name="location_on", color=color, size=18),
                         ft.Text(n['text'][:8], size=8, color="white", weight=ft.FontWeight.BOLD)
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                     alignment=ft.Alignment(align_x, align_y),
@@ -288,7 +287,7 @@ def main(page: ft.Page):
                             ft.Text(f"{prefix}{n['text']}", size=13, weight=ft.FontWeight.BOLD, color=color),
                             ft.Text(f"{n['date']} | 📍 {n['gps']}", size=10, color="grey400")
                         ], expand=True),
-                        ft.IconButton(ft.icons.DELETE, icon_color="red500", on_click=lambda e, nid=n["id"]: delete_note(nid))
+                        ft.IconButton(icon="delete", icon_color="red500", on_click=lambda e, nid=n["id"]: delete_note(nid))
                     ]),
                     padding=8, bgcolor="white10", border_radius=8
                 )
@@ -298,7 +297,7 @@ def main(page: ft.Page):
         user_panel = ft.Column([
             ft.Row([
                 ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color="green400"),
-                ft.IconButton(ft.icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی")
+                ft.IconButton(icon="calculator", on_click=toggle_stealth, tooltip="ماشین حساب مخفی")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             clock_text,
             ft.Divider(),
@@ -312,20 +311,20 @@ def main(page: ft.Page):
                 content=ft.Column([
                     ft.Row([rssi_val_text, distance_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     rssi_progress,
-                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan, icon=ft.icons.RADAR)
+                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan, icon="radar")
                 ]),
                 padding=10, bgcolor="black26", border_radius=8
             ),
             
             ft.Divider(),
-            # ثبت نقاط و مشاهده روی نقشه آفلاین
+            # ثبت نقاط و نقشه آفلاین
             ft.Row([
                 ft.Text("📍 ثبت نقاط و نقشه آفلاین:", size=13, weight=ft.FontWeight.BOLD),
                 create_help_button("نقشه آفلاین", "نقشه داخلی بدون نیاز به اینترنت کار می‌کند.")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Row([note_input]),
             ft.Row([is_suspicious_check, gps_check]),
-            ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon=ft.icons.ADD_LOCATION),
+            ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon="add_location"),
             ft.Row([
                 ft.Text("📋 موارد ذخیره‌شده:", size=13, weight=ft.FontWeight.BOLD),
                 ft.ElevatedButton("مشاهده نقشه راداری آفلاین 🗺️", on_click=open_offline_radar_map, bgcolor="green700", color="white")
