@@ -5,8 +5,9 @@ import time
 import random
 from datetime import datetime
 
-CURRENT_VERSION = "8.3.0-FINAL"
+CURRENT_VERSION = "10.0.0-COMPLETE"
 
+# ذخیره وضعیت عمومی برنامه
 user_store = {
     "notes": [],
     "ram_only_mode": False,
@@ -60,9 +61,8 @@ def main(page: ft.Page):
     page.title = "سامانه پایش و رادار شبکه‌ای"
     page.theme_mode = ft.ThemeMode.DARK
     page.rtl = True
-    page.padding = 10
+    page.padding = 12
 
-    is_stealth_mode = False
     calc_expression = ""
 
     def show_toast(msg: str):
@@ -70,9 +70,10 @@ def main(page: ft.Page):
         page.snack_bar.open = True
         page.update()
 
+    # سیستم نمایش راهنما
     def show_section_guide(title: str, description: str):
         dialog = ft.AlertDialog(
-            title=ft.Text(f"❓ راهنمای {title}", size=16, weight=ft.FontWeight.BOLD, color="green400"),
+            title=ft.Text(f"❓ راهنمای {title}", size=15, weight=ft.FontWeight.BOLD, color="green400"),
             content=ft.Container(
                 content=ft.Text(description, size=13, color="white70"),
                 width=300, padding=10
@@ -82,21 +83,13 @@ def main(page: ft.Page):
         page.open(dialog)
 
     def create_help_button(section_title: str, guide_text: str):
-        return ft.Column([
-            ft.Container(
-                content=ft.IconButton(
-                    icon="help_outline",
-                    icon_color="white",
-                    bgcolor="green600",
-                    icon_size=16,
-                    on_click=lambda e: show_section_guide(section_title, guide_text),
-                    tooltip=f"راهنمای {section_title}"
-                ),
-                shape=ft.BoxShape.CIRCLE,
-                width=32, height=32, alignment=ft.Alignment(0, 0)
-            ),
-            ft.Text("راهنما", size=10, color="green300")
-        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2)
+        return ft.ElevatedButton(
+            "❓ راهنما",
+            on_click=lambda e: show_section_guide(section_title, guide_text),
+            bgcolor="green900",
+            color="white",
+            height=30
+        )
 
     # ----- ۱. نقشه راداری آفلاین -----
     def open_offline_radar_map(e):
@@ -108,13 +101,13 @@ def main(page: ft.Page):
             ft.Container(width=160, height=160, border=ft.border.all(1, "green800"), border_radius=80, alignment=ft.Alignment(0, 0)),
             ft.Container(width=80, height=80, border=ft.border.all(1, "green700"), border_radius=40, alignment=ft.Alignment(0, 0)),
             ft.Container(
-                content=ft.Icon(name="my_location", color="green400", size=24),
+                content=ft.Text("🎯", size=18),
                 alignment=ft.Alignment(0, 0)
             )
         ]
 
         for n in user_store["notes"]:
-            color = "red500" if n["suspicious"] else "blue400"
+            color = "red400" if n["suspicious"] else "cyan400"
             
             dx = (n["lng"] - center_lng) * scale
             dy = (center_lat - n["lat"]) * scale
@@ -128,8 +121,8 @@ def main(page: ft.Page):
             radar_elements.append(
                 ft.Container(
                     content=ft.Column([
-                        ft.Icon(name="location_on", color=color, size=18),
-                        ft.Text(n['text'][:8], size=8, color="white", weight=ft.FontWeight.BOLD)
+                        ft.Text("📍", size=14),
+                        ft.Text(n['text'][:8], size=8, color=color, weight=ft.FontWeight.BOLD)
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                     alignment=ft.Alignment(align_x, align_y),
                     tooltip=f"{n['text']} ({n['gps']})"
@@ -137,7 +130,7 @@ def main(page: ft.Page):
             )
 
         map_dialog = ft.AlertDialog(
-            title=ft.Text("🗺️ رادار و نقشه آفلاین (شبکه ملی)", size=14, weight=ft.FontWeight.BOLD, color="green400"),
+            title=ft.Text("🗺️ رادار و نقشه آفلاین", size=14, weight=ft.FontWeight.BOLD, color="green400"),
             content=ft.Container(
                 content=ft.Column([
                     ft.Text("موقعیت نسبی نقاط مشکوک ثبت‌شده روی رادار:", size=11, color="white70"),
@@ -151,7 +144,7 @@ def main(page: ft.Page):
                     ft.Row([
                         ft.Text("🟢 مرکز: شما", size=10, color="green400"),
                         ft.Text("🔴 مشکوک", size=10, color="red400"),
-                        ft.Text("🔵 عادی", size=10, color="blue400")
+                        ft.Text("🔵 عادی", size=10, color="cyan400")
                     ], alignment=ft.MainAxisAlignment.SPACE_AROUND)
                 ], spacing=10),
                 width=300, height=360, padding=5
@@ -160,11 +153,11 @@ def main(page: ft.Page):
         )
         page.open(map_dialog)
 
-    # ----- ۲. ماشین حساب مخفی -----
+    # ----- ۲. ماشین حساب و ورود پوششی (Stealth View) -----
     calc_display = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="green400")
 
     def on_calc_btn_click(e):
-        nonlocal calc_expression, is_stealth_mode
+        nonlocal calc_expression
         val = e.control.text
 
         if val == "C":
@@ -173,18 +166,13 @@ def main(page: ft.Page):
         elif val == "=":
             if calc_expression == user_store["stealth_pin"]:
                 calc_expression = ""
-                is_stealth_mode = False
-                page.controls.clear()
                 show_user_dashboard()
-                page.update()
                 return
             elif calc_expression == user_store["panic_pin"]:
                 calc_expression = ""
                 user_store["notes"].clear()
-                is_stealth_mode = False
-                page.controls.clear()
                 show_user_dashboard()
-                show_toast("🚨 امحای اضطراری انجام شد.")
+                show_toast("🚨 امحای اضطراری انجام شد و کلیه داده‌ها پاک گردید.")
                 return
             try:
                 calc_display.value = str(eval(calc_expression))
@@ -198,32 +186,26 @@ def main(page: ft.Page):
 
         page.update()
 
-    def toggle_stealth(e):
-        nonlocal is_stealth_mode
-        is_stealth_mode = not is_stealth_mode
-        page.controls.clear()
-        if is_stealth_mode:
-            page.add(fake_calc_view)
-        else:
-            show_user_dashboard()
-        page.update()
-
     def build_calc_button(text, color="white10"):
         return ft.ElevatedButton(text, on_click=on_calc_btn_click, bgcolor=color, expand=True, height=55)
 
-    fake_calc_view = ft.Column([
-        ft.Row([
-            ft.Text("ماشین حساب", size=16, weight=ft.FontWeight.BOLD),
-            create_help_button("ماشین حساب مخفی", "پین 1234= ورود عادی\n🚨 پین 9999= امحای کامل اطلاعات")
-        ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        ft.Container(content=calc_display, padding=15, bgcolor="black46", border_radius=10, alignment=ft.Alignment(1, 0)),
-        ft.Column([
-            ft.Row([build_calc_button("7"), build_calc_button("8"), build_calc_button("9"), build_calc_button("/", "orange800")]),
-            ft.Row([build_calc_button("4"), build_calc_button("5"), build_calc_button("6"), build_calc_button("*", "orange800")]),
-            ft.Row([build_calc_button("1"), build_calc_button("2"), build_calc_button("3"), build_calc_button("-", "orange800")]),
-            ft.Row([build_calc_button("C", "red800"), build_calc_button("0"), build_calc_button("=", "green800"), build_calc_button("+", "orange800")]),
-        ], spacing=8)
-    ], spacing=15)
+    def show_login_view():
+        page.controls.clear()
+        calc_view = ft.Column([
+            ft.Row([
+                ft.Text("🔢 ماشین حساب ورود", size=16, weight=ft.FontWeight.BOLD),
+                create_help_button("ماشین حساب ورود", "این بخش پوششی است.\nپین 1234= ورود به داشبورد اصلی\n🚨 پین 9999= پاکسازی تمام اطلاعات (حالت اضطراری)")
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            ft.Container(content=calc_display, padding=15, bgcolor="black46", border_radius=10, alignment=ft.Alignment(1, 0)),
+            ft.Column([
+                ft.Row([build_calc_button("7"), build_calc_button("8"), build_calc_button("9"), build_calc_button("/", "orange800")]),
+                ft.Row([build_calc_button("4"), build_calc_button("5"), build_calc_button("6"), build_calc_button("*", "orange800")]),
+                ft.Row([build_calc_button("1"), build_calc_button("2"), build_calc_button("3"), build_calc_button("-", "orange800")]),
+                ft.Row([build_calc_button("C", "red800"), build_calc_button("0"), build_calc_button("=", "green800"), build_calc_button("+", "orange800")]),
+            ], spacing=8)
+        ], spacing=15)
+        page.add(calc_view)
+        page.update()
 
     # ----- ۳. داشبورد اصلی -----
     def show_user_dashboard():
@@ -279,7 +261,7 @@ def main(page: ft.Page):
         def render_notes():
             notes_list_view.controls.clear()
             for n in user_store["notes"]:
-                color = "red400" if n["suspicious"] else "blue200"
+                color = "red400" if n["suspicious"] else "cyan200"
                 prefix = "⚠️ [مشکوک] " if n["suspicious"] else "📌 "
                 card = ft.Container(
                     content=ft.Row([
@@ -287,7 +269,7 @@ def main(page: ft.Page):
                             ft.Text(f"{prefix}{n['text']}", size=13, weight=ft.FontWeight.BOLD, color=color),
                             ft.Text(f"{n['date']} | 📍 {n['gps']}", size=10, color="grey400")
                         ], expand=True),
-                        ft.IconButton(icon="delete", icon_color="red500", on_click=lambda e, nid=n["id"]: delete_note(nid))
+                        ft.ElevatedButton("حذف ❌", on_click=lambda e, nid=n["id"]: delete_note(nid), bgcolor="red900", color="white", height=30)
                     ]),
                     padding=8, bgcolor="white10", border_radius=8
                 )
@@ -297,7 +279,7 @@ def main(page: ft.Page):
         user_panel = ft.Column([
             ft.Row([
                 ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color="green400"),
-                ft.IconButton(icon="calculator", on_click=toggle_stealth, tooltip="ماشین حساب مخفی")
+                ft.ElevatedButton("قفل 🔒", on_click=lambda e: show_login_view(), bgcolor="red800", color="white")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             clock_text,
             ft.Divider(),
@@ -305,13 +287,13 @@ def main(page: ft.Page):
             # اسکن سیگنال
             ft.Row([
                 ft.Text("📈 اسکن شدت سیگنال و تخمین فاصله:", size=13, weight=ft.FontWeight.BOLD),
-                create_help_button("اسکن سیگنال", "شدت سیگنال و فاصله بر حسب متر.")
+                create_help_button("اسکن سیگنال", "این بخش شدت سیگنال دریافت شده را بر حسب dBm و فاصله تقریبی (متر) محاسبه و نشان می‌دهد.")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Container(
                 content=ft.Column([
                     ft.Row([rssi_val_text, distance_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     rssi_progress,
-                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan, icon="radar")
+                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan)
                 ]),
                 padding=10, bgcolor="black26", border_radius=8
             ),
@@ -320,11 +302,11 @@ def main(page: ft.Page):
             # ثبت نقاط و نقشه آفلاین
             ft.Row([
                 ft.Text("📍 ثبت نقاط و نقشه آفلاین:", size=13, weight=ft.FontWeight.BOLD),
-                create_help_button("نقشه آفلاین", "نقشه داخلی بدون نیاز به اینترنت کار می‌کند.")
+                create_help_button("نقشه و رادار آفلاین", "می‌توانید موقعیت‌های مشکوک را ثبت کنید. رادار آفلاین بدون نیاز به اینترنت موقعیت‌های نسبی را نشان می‌دهد.")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Row([note_input]),
             ft.Row([is_suspicious_check, gps_check]),
-            ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon="add_location"),
+            ft.ElevatedButton("ثبت نقطه روی نقشه 📍", on_click=add_note),
             ft.Row([
                 ft.Text("📋 موارد ذخیره‌شده:", size=13, weight=ft.FontWeight.BOLD),
                 ft.ElevatedButton("مشاهده نقشه راداری آفلاین 🗺️", on_click=open_offline_radar_map, bgcolor="green700", color="white")
@@ -335,6 +317,7 @@ def main(page: ft.Page):
         page.add(user_panel)
         render_notes()
 
-    show_user_dashboard()
+    # شروع برنامه ابتدا با ماشین حساب ورود
+    show_login_view()
 
 ft.app(target=main)
