@@ -3,9 +3,9 @@ import re
 import math
 import time
 import random
-import jdatetime
+from datetime import datetime
 
-CURRENT_VERSION = "7.0.0-PRO_REAL"
+CURRENT_VERSION = "7.1.0-FIXED"
 SPLASH_IMAGE_URL = "https://v3.fasturl.cloud/file/fasturl/2026/08/02/images.jpeg_627fbbf54522930ed6b1fc910e5362bf.jpeg"
 
 # وضعیت عمومی برنامه
@@ -21,9 +21,37 @@ user_store = {
 def sanitize_input(text: str) -> str:
     return re.sub(r'[\';\"\\<>]', '', text)
 
+# الگوریتم داخلی تبدیل میلادی به شمسی بدون نیاز به کتابخانه خارجی
+def gregorian_to_jalali(gy, gm, gd):
+    g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+    if gy > 1600:
+        jy = 979
+        gy -= 1600
+    else:
+        jy = 0
+        gy -= 621
+    gy2 = gy + 1 if gm > 2 else gy
+    days = (365 * gy) + (gy2 // 4) - (gy2 // 100) + (gy2 // 400) + g_d_m[gm - 1] + gd - 1
+    jy += 33 * (days // 12053)
+    days %= 12053
+    jy += 4 * (days // 1461)
+    days %= 1461
+    if days > 365:
+        jy += (days - 1) // 365
+        days = (days - 1) % 365
+    if days < 186:
+        jm = 1 + (days // 31)
+        jd = 1 + (days % 31)
+    else:
+        jm = 7 + ((days - 186) // 30)
+        jd = 1 + ((days - 186) % 30)
+    return f"{jy}/{jm:02d}/{jd:02d}"
+
 def get_tehran_shamsi_datetime():
-    now_shamsi = jdatetime.datetime.now()
-    return now_shamsi.strftime("%Y/%m/%d"), now_shamsi.strftime("%H:%M:%S")
+    now = datetime.now()
+    shamsi_date = gregorian_to_jalali(now.year, now.month, now.day)
+    time_str = now.strftime("%H:%M:%S")
+    return shamsi_date, time_str
 
 # فرمول علمی FSPL برای تخمین فاصله بر حسب متر
 def calculate_fspl_distance(rssi_dbm: float, freq_mhz: float = 2400.0) -> float:
@@ -157,7 +185,7 @@ def main(page: ft.Page):
         page.controls.clear()
         
         date_shamsi, time_tehran = get_tehran_shamsi_datetime()
-        clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran} (تهران)", size=12, color=ft.colors.CYAN_200, weight=ft.FontWeight.BOLD)
+        clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran}", size=12, color=ft.colors.CYAN_200, weight=ft.FontWeight.BOLD)
 
         # عناصر بخش اسکن سیگنال و تخمین فاصله
         rssi_val_text = ft.Text("-65 dBm", size=14, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400)
