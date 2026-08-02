@@ -10,33 +10,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      
-      - name: Accept Android licenses
+      - name: Install Flutter
         run: |
-          yes | sdkmanager --licenses || true
-      
-      - name: Install flet
+          git clone https://github.com/flutter/flutter.git -b stable --depth 1
+          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+          
+      - name: Install Flet
         run: |
           pip install flet
-      
+          
       - name: Build APK
         run: |
           flet build apk
-      
+          
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: starlink-apk
+          name: starlink-app
           path: build/apk/*.apk
