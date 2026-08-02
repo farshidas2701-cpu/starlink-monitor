@@ -5,14 +5,12 @@ import time
 import random
 from datetime import datetime
 
-CURRENT_VERSION = "7.2.0-FIXED"
-SPLASH_IMAGE_URL = "https://v3.fasturl.cloud/file/fasturl/2026/08/02/images.jpeg_627fbbf54522930ed6b1fc910e5362bf.jpeg"
+CURRENT_VERSION = "8.0.0-OFFLINE-FULL"
 
 # وضعیت عمومی برنامه
 user_store = {
     "notes": [],
     "ram_only_mode": False,
-    "passive_logging": False,
     "stealth_pin": "1234",          # پین ورود عادی
     "panic_pin": "9999",            # پین تخریب اضطراری
     "sound_alert": True
@@ -21,7 +19,6 @@ user_store = {
 def sanitize_input(text: str) -> str:
     return re.sub(r'[\';\"\\<>]', '', text)
 
-# الگوریتم داخلی تبدیل میلادی به شمسی
 def gregorian_to_jalali(gy, gm, gd):
     g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     if gy > 1600:
@@ -53,7 +50,6 @@ def get_tehran_shamsi_datetime():
     time_str = now.strftime("%H:%M:%S")
     return shamsi_date, time_str
 
-# فرمول علمی FSPL برای تخمین فاصله بر حسب متر
 def calculate_fspl_distance(rssi_dbm: float, freq_mhz: float = 2400.0) -> float:
     try:
         exp = (27.55 - (20 * math.log10(freq_mhz)) + abs(rssi_dbm)) / 20.0
@@ -70,7 +66,11 @@ def main(page: ft.Page):
     is_stealth_mode = False
     calc_expression = ""
 
-    # تابع کلی برای نمایش پنجره راهنمای هر بخش
+    def show_toast(msg: str):
+        page.snack_bar = ft.SnackBar(ft.Text(msg))
+        page.snack_bar.open = True
+        page.update()
+
     def show_section_guide(title: str, description: str):
         dialog = ft.AlertDialog(
             title=ft.Text(f"❓ راهنمای {title}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
@@ -82,7 +82,6 @@ def main(page: ft.Page):
         )
         page.open(dialog)
 
-    # ویجت اختصاصی دکمه راهنمای سبز رنگ
     def create_help_button(section_title: str, guide_text: str):
         return ft.Column([
             ft.Container(
@@ -95,12 +94,80 @@ def main(page: ft.Page):
                     tooltip=f"راهنمای {section_title}"
                 ),
                 shape=ft.BoxShape.CIRCLE,
-                width=32, height=32, alignment=ft.alignment.center
+                width=32, height=32, alignment=ft.Alignment(0, 0)
             ),
             ft.Text("راهنما", size=10, color=ft.Colors.GREEN_300)
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2)
 
-    # ----- 1. ماشین حساب مخفی با رمز تخریب اضطراری -----
+    # ----- ۱. نقشه راداری آفلاین پیشرفته (مستقل از اینترنت) -----
+    def open_offline_radar_map(e):
+        center_lat, center_lng = 35.6892, 51.3890
+        scale = 8000  # مقیاس تبدیل درجه جغرافیایی به پیکسل‌های صفحه
+
+        radar_elements = [
+            # لایه‌های گرافیکی شبکه رادار
+            ft.Container(width=240, height=240, border=ft.border.all(1, ft.Colors.GREEN_900), border_radius=120, alignment=ft.Alignment(0, 0)),
+            ft.Container(width=160, height=160, border=ft.border.all(1, ft.Colors.GREEN_800), border_radius=80, alignment=ft.Alignment(0, 0)),
+            ft.Container(width=80, height=80, border=ft.border.all(1, ft.Colors.GREEN_700), border_radius=40, alignment=ft.Alignment(0, 0)),
+            # نقطه مرکز (موقعیت کاربر)
+            ft.Container(
+                content=ft.Icon(ft.Icons.MY_LOCATION, color=ft.Colors.GREEN_400, size=24),
+                alignment=ft.Alignment(0, 0)
+            )
+        ]
+
+        # نگاشت موقعیت مکانی نقاط ثبت‌شده روی گرید
+        for n in user_store["notes"]:
+            color = ft.Colors.RED_500 if n["suspicious"] else ft.Colors.BLUE_400
+            
+            # محاسبه انحراف از مرکز (مجموعاً بین -1 تا +1)
+            dx = (n["lng"] - center_lng) * scale
+            dy = (center_lat - n["lat"]) * scale
+            
+            # محدود کردن نقاط درون کادر ۲۸۰x۲۸۰
+            dx = max(-120, min(120, dx))
+            dy = max(-120, min(120, dy))
+
+            # تبدیل فاصله به Alignment نسبی در Flet
+            align_x = dx / 140
+            align_y = dy / 140
+
+            radar_elements.append(
+                ft.Container(
+                    content=ft.Column([
+                        ft.Icon(ft.Icons.LOCATION_ON, color=color, size=18),
+                        ft.Text(n['text'][:8], size=8, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD)
+                    ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
+                    alignment=ft.Alignment(align_x, align_y),
+                    tooltip=f"{n['text']} ({n['gps']})"
+                )
+            )
+
+        map_dialog = ft.AlertDialog(
+            title=ft.Text("🗺️ رادار و نقشه آفلاین (مخصوص نت ملی)", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
+            content=ft.Container(
+                content=ft.Column([
+                    ft.Text("موقعیت نسبی نقاط مشکوک و ثبت‌شده نسبت به مرکز:", size=11, color=ft.Colors.WHITE70),
+                    ft.Container(
+                        content=ft.Stack(
+                            controls=radar_elements,
+                            alignment=ft.Alignment(0, 0)
+                        ),
+                        width=280, height=280, bgcolor=ft.Colors.BLACK, border_radius=14, border=ft.border.all(1.5, ft.Colors.GREEN_600)
+                    ),
+                    ft.Row([
+                        ft.Text("🟢 مرکز: شما", size=10, color=ft.Colors.GREEN_400),
+                        ft.Text("🔴 مشکوک", size=10, color=ft.Colors.RED_400),
+                        ft.Text("🔵 عادی", size=10, color=ft.Colors.BLUE_400)
+                    ], alignment=ft.MainAxisAlignment.SPACE_AROUND)
+                ], spacing=10),
+                width=300, height=360, padding=5
+            ),
+            actions=[ft.TextButton("بستن", on_click=lambda e: page.close(map_dialog))]
+        )
+        page.open(map_dialog)
+
+    # ----- ۲. ماشین حساب مخفی -----
     calc_display = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400)
 
     def on_calc_btn_click(e):
@@ -111,7 +178,6 @@ def main(page: ft.Page):
             calc_expression = ""
             calc_display.value = "0"
         elif val == "=":
-            # ورود با پین اصلی
             if calc_expression == user_store["stealth_pin"]:
                 calc_expression = ""
                 is_stealth_mode = False
@@ -119,16 +185,13 @@ def main(page: ft.Page):
                 show_user_dashboard()
                 page.update()
                 return
-            # ورود با پین تخریب اضطراری
             elif calc_expression == user_store["panic_pin"]:
                 calc_expression = ""
-                user_store["notes"].clear()  # امحای کامل اطلاعات
+                user_store["notes"].clear()
                 is_stealth_mode = False
                 page.controls.clear()
                 show_user_dashboard()
-                page.snack_bar = ft.SnackBar(ft.Text("🚨 امحای اضطراری انجام شد. تمامی داده‌ها پاک شدند."))
-                page.snack_bar.open = True
-                page.update()
+                show_toast("🚨 امحای اضطراری انجام شد.")
                 return
             try:
                 calc_display.value = str(eval(calc_expression))
@@ -158,9 +221,9 @@ def main(page: ft.Page):
     fake_calc_view = ft.Column([
         ft.Row([
             ft.Text("ماشین حساب", size=16, weight=ft.FontWeight.BOLD),
-            create_help_button("ماشین حساب مخفی", "برای ورود عادی پین 1234= را وارد کنید.\n\n🚨 در صورت اضطرار، وارد کردن پین 9999= تمام داده‌ها را فوراً پاک کرده و محیط برنامه را خالی نشان می‌دهد.")
+            create_help_button("ماشین حساب مخفی", "پین 1234= ورود عادی\n🚨 پین 9999= امحای کامل اطلاعات")
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        ft.Container(content=calc_display, padding=15, bgcolor=ft.Colors.BLACK46, border_radius=10, alignment=ft.alignment.center_right),
+        ft.Container(content=calc_display, padding=15, bgcolor=ft.Colors.BLACK46, border_radius=10, alignment=ft.Alignment(1, 0)),
         ft.Column([
             ft.Row([build_calc_button("7"), build_calc_button("8"), build_calc_button("9"), build_calc_button("/", ft.Colors.ORANGE_800)]),
             ft.Row([build_calc_button("4"), build_calc_button("5"), build_calc_button("6"), build_calc_button("*", ft.Colors.ORANGE_800)]),
@@ -169,25 +232,13 @@ def main(page: ft.Page):
         ], spacing=8)
     ], spacing=15)
 
-    # ----- 2. صفحه ورودی خوش‌آمدگویی -----
-    splash_view = ft.Container(
-        content=ft.Column([
-            ft.Image(src=SPLASH_IMAGE_URL, width=250, height=300, fit=ft.ImageFit.CONTAIN, border_radius=15),
-            ft.Text("به سامانه هوشمند پایش و رادار خوش آمدید", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
-            ft.ElevatedButton("ورود به محیط کاربری 🚀", on_click=lambda e: show_user_dashboard(), bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, width=280),
-        ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12),
-        alignment=ft.alignment.center,
-        expand=True
-    )
-
-    # ----- 3. داشبورد اصلی کاربر -----
+    # ----- ۳. داشبورد اصلی -----
     def show_user_dashboard():
         page.controls.clear()
         
         date_shamsi, time_tehran = get_tehran_shamsi_datetime()
         clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran}", size=12, color=ft.Colors.CYAN_200, weight=ft.FontWeight.BOLD)
 
-        # عناصر بخش اسکن سیگنال و تخمین فاصله
         rssi_val_text = ft.Text("-65 dBm", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400)
         distance_text = ft.Text("تخمین فاصله: ~8.5 متر", size=12, color=ft.Colors.AMBER_200)
         rssi_progress = ft.ProgressBar(value=0.65, color=ft.Colors.GREEN_400, bgcolor=ft.Colors.WHITE10)
@@ -201,11 +252,9 @@ def main(page: ft.Page):
             rssi_progress.color = ft.Colors.RED_400 if val < 50 else ft.Colors.GREEN_400 if val < 75 else ft.Colors.AMBER_400
             
             if val < 50 and user_store["sound_alert"]:
-                page.snack_bar = ft.SnackBar(ft.Text("🔊 [هشدار صوتی گایگر] سیگنال بسیار نزدیک است!"))
-                page.snack_bar.open = True
+                show_toast("🔊 [هشدار صوتی گایگر] سیگنال بسیار نزدیک است!")
             page.update()
 
-        # ثبت یادداشت
         note_input = ft.TextField(label="متن یادداشت یا نقطه مشکوک", expand=True)
         is_suspicious_check = ft.Checkbox(label="⚠️ نقطه مشکوک", value=False)
         gps_check = ft.Checkbox(label="📍 ثبت موقعیت (GPS)", value=True)
@@ -234,43 +283,6 @@ def main(page: ft.Page):
             user_store["notes"] = [n for n in user_store["notes"] if n["id"] != note_id]
             render_notes()
 
-        def panic_wipe(e):
-            user_store["notes"].clear()
-            render_notes()
-            page.snack_bar = ft.SnackBar(ft.Text("🚨 تمامی داده‌ها امحا شدند."))
-            page.snack_bar.open = True
-            page.update()
-
-        # خروجی KML برای گوگل ارث
-        def export_kml(e):
-            if user_store["ram_only_mode"]:
-                page.snack_bar = ft.SnackBar(ft.Text("⚠️ حالت RAM-Only فعال است؛ ذخیره روی دیسک مجاز نیست."))
-                page.snack_bar.open = True
-                page.update()
-                return
-
-            try:
-                kml_content = '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2">\n<Document>\n'
-                for n in user_store["notes"]:
-                    kml_content += f"""  <Placemark>
-    <name>{n['text']}</name>
-    <description>تاريخ: {n['date']}</description>
-    <Point>
-      <coordinates>{n['lng']},{n['lat']},0</coordinates>
-    </Point>
-  </Placemark>\n"""
-                kml_content += "</Document>\n</kml>"
-
-                with open("radar_map.kml", "w", encoding="utf-8") as f:
-                    f.write(kml_content)
-
-                page.snack_bar = ft.SnackBar(ft.Text("✅ فایل KML با موفقیت برای Google Earth ذخیره شد."))
-                page.snack_bar.open = True
-            except Exception as ex:
-                page.snack_bar = ft.SnackBar(ft.Text(f"❌ خطا در خروجی: {str(ex)}"))
-                page.snack_bar.open = True
-            page.update()
-
         def render_notes():
             notes_list_view.controls.clear()
             for n in user_store["notes"]:
@@ -292,18 +304,15 @@ def main(page: ft.Page):
         user_panel = ft.Column([
             ft.Row([
                 ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
-                ft.Row([
-                    ft.IconButton(ft.Icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی"),
-                    ft.IconButton(ft.Icons.DELETE_FOREVER, on_click=panic_wipe, icon_color=ft.Colors.RED_400, tooltip="امحای سریع"),
-                ])
+                ft.IconButton(ft.Icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             clock_text,
             ft.Divider(),
             
-            # 📈 ۱. بخش تحلیل سیگنال و تخمین فاصله
+            # اسکن سیگنال
             ft.Row([
                 ft.Text("📈 اسکن شدت سیگنال و تخمین فاصله:", size=13, weight=ft.FontWeight.BOLD),
-                create_help_button("اسکن سیگنال", "این بخش شدت سیگنال را بر حسب dBm نمایش داده و با استفاده از فرمول علمی FSPL، فاصله تقریبی شما تا منبع سیگنال را بر حسب متر محاسبه می‌کند.")
+                create_help_button("اسکن سیگنال", "شدت سیگنال و فاصله بر حسب متر.")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Container(
                 content=ft.Column([
@@ -315,32 +324,17 @@ def main(page: ft.Page):
             ),
             
             ft.Divider(),
-            # 🧭 ۲. قطب‌نما و جهت‌یابی سیگنال
+            # ثبت نقاط و مشاهده روی نقشه آفلاین
             ft.Row([
-                ft.Text("🧭 جهت‌یابی مکانی سیگنال:", size=13, weight=ft.FontWeight.BOLD),
-                create_help_button("جهت‌یابی سیگنال", "برای یافتن جهت منبع، ۳۶۰ درجه به دور خود بچرخید و در زوایای مختلف دکمه اسکن را بزنید تا سمتی که قوی‌ترین سیگنال را دارد مشخص شود.")
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            
-            ft.Divider(),
-            # 🛡️ ۳. تنظیمات امنیتی
-            ft.Row([
-                ft.Text("🛡️ تنظیمات امنیتی و حافظه:", size=13, weight=ft.FontWeight.BOLD),
-                create_help_button("حالت RAM-Only", "با فعال کردن این حالت، هیچ داده‌ای روی حافظه داخلی گوشی ذخیره نخواهد شد و با بستن برنامه همه چیز کاملاً پاک می‌شود.")
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-            ft.Switch(label="🧹 حالت حافظه موقت (RAM-Only)", value=user_store["ram_only_mode"], on_change=lambda e: user_store.update({"ram_only_mode": e.control.value})),
-            
-            ft.Divider(),
-            # 📍 ۴. ثبت نقاط و خروجی نقشه
-            ft.Row([
-                ft.Text("📍 ثبت نقاط روی نقشه و KML:", size=13, weight=ft.FontWeight.BOLD),
-                create_help_button("ثبت نقاط و گوگل ارث", "می‌توانید موقعیت مکان‌های مشکوک را با مختصات دقیق GPS ثبت کنید و در نهایت خروجی KML را دریافت کرده و در Google Earth مشاهده کنید.")
+                ft.Text("📍 ثبت نقاط و نقشه آفلاین:", size=13, weight=ft.FontWeight.BOLD),
+                create_help_button("نقشه آفلاین", "نقشه داخلی بدون نیاز به اینترنت کار می‌کند.")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Row([note_input]),
             ft.Row([is_suspicious_check, gps_check]),
             ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon=ft.Icons.ADD_LOCATION),
             ft.Row([
                 ft.Text("📋 موارد ذخیره‌شده:", size=13, weight=ft.FontWeight.BOLD),
-                ft.IconButton(ft.Icons.MAP, on_click=export_kml, tooltip="دانلود خروجی KML برای Google Earth")
+                ft.ElevatedButton("مشاهده نقشه راداری آفلاین 🗺️", on_click=open_offline_radar_map, bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE)
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             notes_list_view
         ], scroll=ft.ScrollMode.AUTO)
@@ -348,6 +342,6 @@ def main(page: ft.Page):
         page.add(user_panel)
         render_notes()
 
-    page.add(splash_view)
+    show_user_dashboard()
 
 ft.app(target=main)
