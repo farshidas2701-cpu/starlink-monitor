@@ -9,42 +9,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      
-      - name: Accept Android licenses
-        run: |
-          yes | sdkmanager --licenses || true
-      
-      - name: Install Flutter
-        run: |
-          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.0-stable.tar.xz
-          tar -xf flutter_linux_3.22.0-stable.tar.xz
-          echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
-      
-      - name: Install Flet
-        run: |
-          pip install flet
-      
-      - name: Build APK
-        run: |
-          flutter doctor
-          flet build apk
-      
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - run: pip install flet
+      - run: flet build apk
+      - uses: actions/upload-artifact@v4
         with:
           name: starlink-app
           path: build/apk/*.apk
