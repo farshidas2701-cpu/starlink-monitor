@@ -1,20 +1,19 @@
-name: Build Android APK
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install flet
-      - run: flet build apk
-      - uses: actions/upload-artifact@v4
-        with:
-          name: starlink-app
-          path: build/apk/*.apk
+def open_simple_radar(e):
+    # یه رادار ساده با دایره‌های متحدالمرکز
+    page.controls.clear()
+    page.add(
+        ft.Column([
+            ft.Text("🗺️ رادار ساده", size=20, weight=ft.FontWeight.BOLD),
+            ft.Container(
+                content=ft.Stack([
+                    ft.Container(width=200, height=200, border=ft.border.all(1, "green"), border_radius=100),
+                    ft.Container(width=140, height=140, border=ft.border.all(1, "green"), border_radius=70),
+                    ft.Container(width=80, height=80, border=ft.border.all(1, "green"), border_radius=40),
+                    ft.Container(content=ft.Text("🎯", size=20), alignment=ft.Alignment(0, 0))
+                ]),
+                width=200, height=200
+            ),
+            ft.ElevatedButton("بازگشت", on_click=lambda e: show_dashboard())
+        ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+    )
+    page.update()
