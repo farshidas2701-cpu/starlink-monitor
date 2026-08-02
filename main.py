@@ -5,7 +5,7 @@ import time
 import random
 from datetime import datetime
 
-CURRENT_VERSION = "8.0.0-OFFLINE-FULL"
+CURRENT_VERSION = "8.1.0-STABLE"
 
 # وضعیت عمومی برنامه
 user_store = {
@@ -99,36 +99,30 @@ def main(page: ft.Page):
             ft.Text("راهنما", size=10, color=ft.Colors.GREEN_300)
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2)
 
-    # ----- ۱. نقشه راداری آفلاین پیشرفته (مستقل از اینترنت) -----
+    # ----- ۱. نقشه راداری آفلاین و مستقل از اینترنت -----
     def open_offline_radar_map(e):
         center_lat, center_lng = 35.6892, 51.3890
-        scale = 8000  # مقیاس تبدیل درجه جغرافیایی به پیکسل‌های صفحه
+        scale = 8000
 
         radar_elements = [
-            # لایه‌های گرافیکی شبکه رادار
             ft.Container(width=240, height=240, border=ft.border.all(1, ft.Colors.GREEN_900), border_radius=120, alignment=ft.Alignment(0, 0)),
             ft.Container(width=160, height=160, border=ft.border.all(1, ft.Colors.GREEN_800), border_radius=80, alignment=ft.Alignment(0, 0)),
             ft.Container(width=80, height=80, border=ft.border.all(1, ft.Colors.GREEN_700), border_radius=40, alignment=ft.Alignment(0, 0)),
-            # نقطه مرکز (موقعیت کاربر)
             ft.Container(
                 content=ft.Icon(ft.Icons.MY_LOCATION, color=ft.Colors.GREEN_400, size=24),
                 alignment=ft.Alignment(0, 0)
             )
         ]
 
-        # نگاشت موقعیت مکانی نقاط ثبت‌شده روی گرید
         for n in user_store["notes"]:
             color = ft.Colors.RED_500 if n["suspicious"] else ft.Colors.BLUE_400
             
-            # محاسبه انحراف از مرکز (مجموعاً بین -1 تا +1)
             dx = (n["lng"] - center_lng) * scale
             dy = (center_lat - n["lat"]) * scale
             
-            # محدود کردن نقاط درون کادر ۲۸۰x۲۸۰
             dx = max(-120, min(120, dx))
             dy = max(-120, min(120, dy))
 
-            # تبدیل فاصله به Alignment نسبی در Flet
             align_x = dx / 140
             align_y = dy / 140
 
@@ -144,10 +138,10 @@ def main(page: ft.Page):
             )
 
         map_dialog = ft.AlertDialog(
-            title=ft.Text("🗺️ رادار و نقشه آفلاین (مخصوص نت ملی)", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
+            title=ft.Text("🗺️ رادار و نقشه آفلاین (شبکه ملی)", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
             content=ft.Container(
                 content=ft.Column([
-                    ft.Text("موقعیت نسبی نقاط مشکوک و ثبت‌شده نسبت به مرکز:", size=11, color=ft.Colors.WHITE70),
+                    ft.Text("موقعیت نسبی نقاط مشکوک ثبت‌شده روی رادار:", size=11, color=ft.Colors.WHITE70),
                     ft.Container(
                         content=ft.Stack(
                             controls=radar_elements,
