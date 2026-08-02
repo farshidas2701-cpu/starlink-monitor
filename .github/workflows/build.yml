@@ -10,24 +10,39 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Set up Python
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
+      - name: Accept Android licenses
+        run: |
+          yes | sdkmanager --licenses || true
+      
       - name: Install Flutter
         run: |
-          git clone https://github.com/flutter/flutter.git -b stable --depth 1
+          wget https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.22.0-stable.tar.xz
+          tar -xf flutter_linux_3.22.0-stable.tar.xz
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
-          
+      
       - name: Install Flet
         run: |
           pip install flet
-          
+      
       - name: Build APK
         run: |
+          flutter doctor
           flet build apk
-          
+      
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
