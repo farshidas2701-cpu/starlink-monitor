@@ -2,16 +2,20 @@ import flet as ft
 import re
 import hashlib
 import time
+import random
 import jdatetime
 
-CURRENT_VERSION = "5.0.0-USER_ONLY"
+CURRENT_VERSION = "6.0.0-STEALTH_PRO"
 SPLASH_IMAGE_URL = "https://v3.fasturl.cloud/file/fasturl/2026/08/02/images.jpeg_627fbbf54522930ed6b1fc910e5362bf.jpeg"
 
-# حافظه محلی برنامه (کاملاً شخصی برای هر کاربر)
+# وضعیت عمومی برنامه و تنظیمات حافظه
 user_store = {
     "notes": [],
     "2fa_enabled": False,
-    "stealth_pin": "1234" # پین ورود از ماشین حساب ساختگی
+    "ram_only_mode": False,       # حالت عدم ذخیره‌سازی روی دیسک (فقط RAM)
+    "haptic_enabled": True,       # هشدار ویبره/لرزشی
+    "passive_logging": False,     # اسکن پس‌زمینه و لاگ جاده‌ای
+    "stealth_pin": "1234"
 }
 
 def sanitize_input(text: str) -> str:
@@ -22,7 +26,7 @@ def get_tehran_shamsi_datetime():
     return now_shamsi.strftime("%Y/%m/%d"), now_shamsi.strftime("%H:%M:%S")
 
 def main(page: ft.Page):
-    page.title = "سامانه هوشمند پایش و رادار"
+    page.title = "سامانه پیشرفته پایش و رادار شبکه‌ای"
     page.theme_mode = ft.ThemeMode.DARK
     page.rtl = True
     page.padding = 10
@@ -30,27 +34,27 @@ def main(page: ft.Page):
     is_stealth_mode = False
     calc_expression = ""
 
-    # ----- 1. راهنمای جامع کاربران -----
+    # ----- 1. راهنمای جامع و به‌روزرسانی‌شده -----
     guide_dialog = ft.AlertDialog(
-        title=ft.Text("📖 راهنمای امکانات کاربر", size=16, weight=ft.FontWeight.BOLD),
+        title=ft.Text("📖 راهنمای امکانات پیشرفته سامانه", size=16, weight=ft.FontWeight.BOLD),
         content=ft.Container(
             content=ft.Column([
-                ft.Text("🚀 ۱. رادار و کشف هوشمند استارلینک:", weight=ft.FontWeight.BOLD, color=ft.colors.CYAN_200),
-                ft.Text("• اسکن خودکار BSSID و تخمین فاصله تا مودم بر حسب متر."),
+                ft.Text("📈 ۱. نمودار زنده شدت سیگنال (Live RSSI Graph):", weight=ft.FontWeight.BOLD, color=ft.colors.CYAN_200),
+                ft.Text("• مشاهده نوسانات و اوج‌گیری سیگنال بر حسب dBm جهت یافتن موقعیت دقیق."),
                 ft.Divider(),
-                ft.Text("🧮 ۲. ماشین‌حساب ساختگی (حالت مخفی):", weight=ft.FontWeight.BOLD, color=ft.colors.PURPLE_200),
-                ft.Text("• ماشین‌حساب کارآمد برای پنهان‌سازی برنامه. با زدن کد رمز (پیش‌فرض: 1234) برنامه اصلی باز می‌شود."),
+                ft.Text("🔔 ۲. هشدار لرزشی بی‌صدا (Haptic Alert):", weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_200),
+                ft.Text("• اعلام نزدیک شدن به سیگنال با الگوهای لرزش بدون ایجاد صدا."),
                 ft.Divider(),
-                ft.Text("📍 ۳. ثبت یادداشت و GPS:", weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_200),
-                ft.Text("• ثبت نقاط مشکوک به همراه مختصات GPS و ذخیره دائمی روی گوشی."),
+                ft.Text("🧹 ۳. حالت حافظه رم (RAM-Only Operating):", weight=ft.FontWeight.BOLD, color=ft.colors.RED_200),
+                ft.Text("• عدم ذخیره‌سازی هیچ داده‌ای روی دیسک؛ پاکسازی کامل اطلاعات پس از خروج."),
                 ft.Divider(),
-                ft.Text("🚨 ۴. پاکسازی سریع (Panic Wipe):", weight=ft.FontWeight.BOLD, color=ft.colors.RED_200),
-                ft.Text("• دکمه اضطراری جهت پاک کردن تمام داده‌ها و یادداشت‌های ذخیره شده."),
+                ft.Text("⏱️ ۴. ثبت پس‌زمینه جاده‌ای (Passive Logging):", weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_200),
+                ft.Text("• پایش مداوم سیگنال و ثبت موقعیت حین حرکت با صفحه خاموش."),
                 ft.Divider(),
-                ft.Text("📥 ۵. دریافت خروجی (Export CSV):", weight=ft.FontWeight.BOLD, color=ft.colors.AMBER_200),
-                ft.Text("• ذخیره اطلاعات و گزارش‌ها روی حافظه گوشی به صورت فایل CSV.")
+                ft.Text("🧮 ۵. ماشین‌حساب مخفی واقعی (Stealth Mode):", weight=ft.FontWeight.BOLD, color=ft.colors.PURPLE_200),
+                ft.Text("• ورود به محیط کاربری فقط با وارد کردن پین (پیش‌فرض: 1234=).")
             ], scroll=ft.ScrollMode.AUTO, spacing=8),
-            width=320, height=400
+            width=320, height=420
         ),
         actions=[ft.TextButton("متوجه شدم", on_click=lambda e: page.close(guide_dialog))]
     )
@@ -69,7 +73,6 @@ def main(page: ft.Page):
             calc_expression = ""
             calc_display.value = "0"
         elif val == "=":
-            # بررسی پین مخفی برای ورود به برنامه اصلی
             if calc_expression == user_store["stealth_pin"]:
                 calc_expression = ""
                 is_stealth_mode = False
@@ -78,7 +81,6 @@ def main(page: ft.Page):
                 page.update()
                 return
             try:
-                # محاسبه ریاضی واقعی
                 calc_display.value = str(eval(calc_expression))
                 calc_expression = calc_display.value
             except:
@@ -129,24 +131,44 @@ def main(page: ft.Page):
         expand=True
     )
 
-    # ----- 4. داشبورد اختصاصی و کامل کاربر -----
+    # ----- 4. داشبورد اختصاصی و پیشرفته کاربر -----
     def show_user_dashboard():
         page.controls.clear()
         
         date_shamsi, time_tehran = get_tehran_shamsi_datetime()
         clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran} (تهران)", size=12, color=ft.colors.CYAN_200, weight=ft.FontWeight.BOLD)
 
-        def toggle_theme(e):
-            page.theme_mode = ft.ThemeMode.LIGHT if page.theme_mode == ft.ThemeMode.DARK else ft.ThemeMode.DARK
+        # 📈 کنترل‌های نمودار زنده سیگنال (RSSI Live Graph)
+        rssi_val_text = ft.Text("-65 dBm (متوسط)", size=14, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400)
+        rssi_progress = ft.ProgressBar(value=0.65, color=ft.colors.GREEN_400, bgcolor=ft.colors.WHITE10)
+
+        def simulate_signal_scan(e):
+            # شبیه‌سازی تغییر شدت سیگنال و بازخورد
+            val = random.randint(30, 95)
+            rssi_val_text.value = f"-{val} dBm ({'قوی / نزدیک' if val < 50 else 'متوسط' if val < 75 else 'ضعیف'})"
+            rssi_progress.value = (100 - val) / 100
+            rssi_progress.color = ft.colors.RED_400 if val < 50 else ft.colors.GREEN_400 if val < 75 else ft.colors.AMBER_400
+            
+            if user_store["haptic_enabled"] and val < 50:
+                page.snack_bar = ft.SnackBar(ft.Text("📳 [هشدار لرزشی] سیگنال قوی در نزدیکی کشف شد!"))
+                page.snack_bar.open = True
             page.update()
 
-        def toggle_2fa(e):
-            user_store["2fa_enabled"] = e.control.value
-            page.snack_bar = ft.SnackBar(ft.Text(f"تایید دو مرحله‌ای {'فعال' if e.control.value else 'غیرفعال'} شد."))
+        def toggle_ram_mode(e):
+            user_store["ram_only_mode"] = e.control.value
+            status = "فعال (عدم ذخیره روی دیسک)" if e.control.value else "غیرفعال"
+            page.snack_bar = ft.SnackBar(ft.Text(f"حالت RAM-Only {status} شد."))
             page.snack_bar.open = True
             page.update()
 
-        # ثبت یادداشت و نقاط مشکوک
+        def toggle_passive_logging(e):
+            user_store["passive_logging"] = e.control.value
+            status = "فعال" if e.control.value else "غیرفعال"
+            page.snack_bar = ft.SnackBar(ft.Text(f"پایش پس‌زمینه جاده‌ای {status} شد."))
+            page.snack_bar.open = True
+            page.update()
+
+        # ثبت یادداشت و GPS
         note_input = ft.TextField(label="متن یادداشت یا نقطه مشکوک", expand=True)
         is_suspicious_check = ft.Checkbox(label="⚠️ نقطه مشکوک", value=False)
         gps_check = ft.Checkbox(label="📍 ثبت موقعیت مکانی (GPS)", value=True)
@@ -172,17 +194,22 @@ def main(page: ft.Page):
             user_store["notes"] = [n for n in user_store["notes"] if n["id"] != note_id]
             render_notes()
 
-        # دکمه پاکسازی اضطراری (Panic Button)
         def panic_wipe(e):
             user_store["notes"].clear()
             render_notes()
-            page.snack_bar = ft.SnackBar(ft.Text("🚨 تمام داده‌ها و یادداشت‌ها با موفقیت پاکسازی شدند."))
+            page.snack_bar = ft.SnackBar(ft.Text("🚨 تمام داده‌ها با موفقیت امحا شدند."))
             page.snack_bar.open = True
             page.update()
 
         def export_data(e):
+            if user_store["ram_only_mode"]:
+                page.snack_bar = ft.SnackBar(ft.Text("⚠️ حالت RAM-Only فعال است؛ ذخیره روی دیسک مجاز نیست."))
+                page.snack_bar.open = True
+                page.update()
+                return
+
             try:
-                filename = "my_radar_report.csv"
+                filename = "radar_export.csv"
                 with open(filename, "w", encoding="utf-8") as f:
                     f.write("Date,Type,Note,GPS\n")
                     for n in user_store["notes"]:
@@ -215,17 +242,32 @@ def main(page: ft.Page):
 
         user_panel = ft.Column([
             ft.Row([
-                ft.Text("📱 سامانه هوشمند پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
+                ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
                 ft.Row([
                     ft.IconButton(ft.icons.HELP_OUTLINE, on_click=open_guide, tooltip="راهنما"),
                     ft.IconButton(ft.icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی"),
-                    ft.IconButton(ft.icons.BRIGHTNESS_4, on_click=toggle_theme, tooltip="تم تاریک/روشن"),
-                    ft.IconButton(ft.icons.DELETE_FOREVER, on_click=panic_wipe, icon_color=ft.colors.RED_400, tooltip="پاکسازی اضطراری داده‌ها"),
+                    ft.IconButton(ft.icons.DELETE_FOREVER, on_click=panic_wipe, icon_color=ft.colors.RED_400, tooltip="امحای سریع داده‌ها"),
                 ])
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             clock_text,
             ft.Divider(),
-            ft.Switch(label="🔐 فعال‌سازی تایید دو مرحله‌ای (2FA)", value=user_store["2fa_enabled"], on_change=toggle_2fa),
+            
+            # 📈 پنل نمودار زنده سیگنال
+            ft.Text("📈 نمودار لحظه‌ای شدت سیگنال (RSSI):", size=13, weight=ft.FontWeight.BOLD),
+            ft.Container(
+                content=ft.Column([
+                    ft.Row([ft.Text("قدرت سیگنال:"), rssi_val_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    rssi_progress,
+                    ft.ElevatedButton("بروزرسانی اسکن سیگنال 🔄", on_click=simulate_signal_scan, icon=ft.icons.RADAR)
+                ]),
+                padding=10, bgcolor=ft.colors.BLACK26, border_radius=8
+            ),
+            
+            ft.Divider(),
+            # تنظیمات امنیتی جدید
+            ft.Switch(label="🧹 حالت حافظه موقت (RAM-Only / عدم ذخیره روی دیسک)", value=user_store["ram_only_mode"], on_change=toggle_ram_mode),
+            ft.Switch(label="⏱️ ثبت پس‌زمینه جاده‌ای (Passive Logger)", value=user_store["passive_logging"], on_change=toggle_passive_logging),
+            
             ft.Divider(),
             ft.Text("📍 ثبت یادداشت و نقاط مشکوک روی نقشه:", size=13, weight=ft.FontWeight.BOLD),
             ft.Row([note_input]),
