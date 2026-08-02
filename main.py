@@ -5,7 +5,7 @@ import time
 import random
 from datetime import datetime
 
-CURRENT_VERSION = "8.1.0-STABLE"
+CURRENT_VERSION = "8.2.0-STABLE-FIXED"
 
 # وضعیت عمومی برنامه
 user_store = {
@@ -73,9 +73,9 @@ def main(page: ft.Page):
 
     def show_section_guide(title: str, description: str):
         dialog = ft.AlertDialog(
-            title=ft.Text(f"❓ راهنمای {title}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
+            title=ft.Text(f"❓ راهنمای {title}", size=16, weight=ft.FontWeight.BOLD, color="green400"),
             content=ft.Container(
-                content=ft.Text(description, size=13, color=ft.Colors.WHITE70),
+                content=ft.Text(description, size=13, color="white70"),
                 width=300, padding=10
             ),
             actions=[ft.TextButton("متوجه شدم", on_click=lambda e: page.close(dialog))]
@@ -86,9 +86,9 @@ def main(page: ft.Page):
         return ft.Column([
             ft.Container(
                 content=ft.IconButton(
-                    icon=ft.Icons.QUESTION_MARK,
-                    icon_color=ft.Colors.WHITE,
-                    bgcolor=ft.Colors.GREEN_600,
+                    icon=ft.icons.HELP_OUTLINE,
+                    icon_color="white",
+                    bgcolor="green600",
                     icon_size=16,
                     on_click=lambda e: show_section_guide(section_title, guide_text),
                     tooltip=f"راهنمای {section_title}"
@@ -96,7 +96,7 @@ def main(page: ft.Page):
                 shape=ft.BoxShape.CIRCLE,
                 width=32, height=32, alignment=ft.Alignment(0, 0)
             ),
-            ft.Text("راهنما", size=10, color=ft.Colors.GREEN_300)
+            ft.Text("راهنما", size=10, color="green300")
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2)
 
     # ----- ۱. نقشه راداری آفلاین و مستقل از اینترنت -----
@@ -105,17 +105,17 @@ def main(page: ft.Page):
         scale = 8000
 
         radar_elements = [
-            ft.Container(width=240, height=240, border=ft.border.all(1, ft.Colors.GREEN_900), border_radius=120, alignment=ft.Alignment(0, 0)),
-            ft.Container(width=160, height=160, border=ft.border.all(1, ft.Colors.GREEN_800), border_radius=80, alignment=ft.Alignment(0, 0)),
-            ft.Container(width=80, height=80, border=ft.border.all(1, ft.Colors.GREEN_700), border_radius=40, alignment=ft.Alignment(0, 0)),
+            ft.Container(width=240, height=240, border=ft.border.all(1, "green900"), border_radius=120, alignment=ft.Alignment(0, 0)),
+            ft.Container(width=160, height=160, border=ft.border.all(1, "green800"), border_radius=80, alignment=ft.Alignment(0, 0)),
+            ft.Container(width=80, height=80, border=ft.border.all(1, "green700"), border_radius=40, alignment=ft.Alignment(0, 0)),
             ft.Container(
-                content=ft.Icon(ft.Icons.MY_LOCATION, color=ft.Colors.GREEN_400, size=24),
+                content=ft.Icon(ft.icons.MY_LOCATION, color="green400", size=24),
                 alignment=ft.Alignment(0, 0)
             )
         ]
 
         for n in user_store["notes"]:
-            color = ft.Colors.RED_500 if n["suspicious"] else ft.Colors.BLUE_400
+            color = "red500" if n["suspicious"] else "blue400"
             
             dx = (n["lng"] - center_lng) * scale
             dy = (center_lat - n["lat"]) * scale
@@ -129,8 +129,8 @@ def main(page: ft.Page):
             radar_elements.append(
                 ft.Container(
                     content=ft.Column([
-                        ft.Icon(ft.Icons.LOCATION_ON, color=color, size=18),
-                        ft.Text(n['text'][:8], size=8, color=ft.Colors.WHITE, weight=ft.FontWeight.BOLD)
+                        ft.Icon(ft.icons.LOCATION_ON, color=color, size=18),
+                        ft.Text(n['text'][:8], size=8, color="white", weight=ft.FontWeight.BOLD)
                     ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=0),
                     alignment=ft.Alignment(align_x, align_y),
                     tooltip=f"{n['text']} ({n['gps']})"
@@ -138,21 +138,21 @@ def main(page: ft.Page):
             )
 
         map_dialog = ft.AlertDialog(
-            title=ft.Text("🗺️ رادار و نقشه آفلاین (شبکه ملی)", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
+            title=ft.Text("🗺️ رادار و نقشه آفلاین (شبکه ملی)", size=14, weight=ft.FontWeight.BOLD, color="green400"),
             content=ft.Container(
                 content=ft.Column([
-                    ft.Text("موقعیت نسبی نقاط مشکوک ثبت‌شده روی رادار:", size=11, color=ft.Colors.WHITE70),
+                    ft.Text("موقعیت نسبی نقاط مشکوک ثبت‌شده روی رادار:", size=11, color="white70"),
                     ft.Container(
                         content=ft.Stack(
                             controls=radar_elements,
                             alignment=ft.Alignment(0, 0)
                         ),
-                        width=280, height=280, bgcolor=ft.Colors.BLACK, border_radius=14, border=ft.border.all(1.5, ft.Colors.GREEN_600)
+                        width=280, height=280, bgcolor="black", border_radius=14, border=ft.border.all(1.5, "green600")
                     ),
                     ft.Row([
-                        ft.Text("🟢 مرکز: شما", size=10, color=ft.Colors.GREEN_400),
-                        ft.Text("🔴 مشکوک", size=10, color=ft.Colors.RED_400),
-                        ft.Text("🔵 عادی", size=10, color=ft.Colors.BLUE_400)
+                        ft.Text("🟢 مرکز: شما", size=10, color="green400"),
+                        ft.Text("🔴 مشکوک", size=10, color="red400"),
+                        ft.Text("🔵 عادی", size=10, color="blue400")
                     ], alignment=ft.MainAxisAlignment.SPACE_AROUND)
                 ], spacing=10),
                 width=300, height=360, padding=5
@@ -162,7 +162,7 @@ def main(page: ft.Page):
         page.open(map_dialog)
 
     # ----- ۲. ماشین حساب مخفی -----
-    calc_display = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400)
+    calc_display = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color="green400")
 
     def on_calc_btn_click(e):
         nonlocal calc_expression, is_stealth_mode
@@ -209,7 +209,7 @@ def main(page: ft.Page):
             show_user_dashboard()
         page.update()
 
-    def build_calc_button(text, color=ft.Colors.WHITE10):
+    def build_calc_button(text, color="white10"):
         return ft.ElevatedButton(text, on_click=on_calc_btn_click, bgcolor=color, expand=True, height=55)
 
     fake_calc_view = ft.Column([
@@ -217,12 +217,12 @@ def main(page: ft.Page):
             ft.Text("ماشین حساب", size=16, weight=ft.FontWeight.BOLD),
             create_help_button("ماشین حساب مخفی", "پین 1234= ورود عادی\n🚨 پین 9999= امحای کامل اطلاعات")
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        ft.Container(content=calc_display, padding=15, bgcolor=ft.Colors.BLACK46, border_radius=10, alignment=ft.Alignment(1, 0)),
+        ft.Container(content=calc_display, padding=15, bgcolor="black46", border_radius=10, alignment=ft.Alignment(1, 0)),
         ft.Column([
-            ft.Row([build_calc_button("7"), build_calc_button("8"), build_calc_button("9"), build_calc_button("/", ft.Colors.ORANGE_800)]),
-            ft.Row([build_calc_button("4"), build_calc_button("5"), build_calc_button("6"), build_calc_button("*", ft.Colors.ORANGE_800)]),
-            ft.Row([build_calc_button("1"), build_calc_button("2"), build_calc_button("3"), build_calc_button("-", ft.Colors.ORANGE_800)]),
-            ft.Row([build_calc_button("C", ft.Colors.RED_800), build_calc_button("0"), build_calc_button("=", ft.Colors.GREEN_800), build_calc_button("+", ft.Colors.ORANGE_800)]),
+            ft.Row([build_calc_button("7"), build_calc_button("8"), build_calc_button("9"), build_calc_button("/", "orange800")]),
+            ft.Row([build_calc_button("4"), build_calc_button("5"), build_calc_button("6"), build_calc_button("*", "orange800")]),
+            ft.Row([build_calc_button("1"), build_calc_button("2"), build_calc_button("3"), build_calc_button("-", "orange800")]),
+            ft.Row([build_calc_button("C", "red800"), build_calc_button("0"), build_calc_button("=", "green800"), build_calc_button("+", "orange800")]),
         ], spacing=8)
     ], spacing=15)
 
@@ -231,11 +231,11 @@ def main(page: ft.Page):
         page.controls.clear()
         
         date_shamsi, time_tehran = get_tehran_shamsi_datetime()
-        clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran}", size=12, color=ft.Colors.CYAN_200, weight=ft.FontWeight.BOLD)
+        clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran}", size=12, color="cyan200", weight=ft.FontWeight.BOLD)
 
-        rssi_val_text = ft.Text("-65 dBm", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400)
-        distance_text = ft.Text("تخمین فاصله: ~8.5 متر", size=12, color=ft.Colors.AMBER_200)
-        rssi_progress = ft.ProgressBar(value=0.65, color=ft.Colors.GREEN_400, bgcolor=ft.Colors.WHITE10)
+        rssi_val_text = ft.Text("-65 dBm", size=14, weight=ft.FontWeight.BOLD, color="green400")
+        distance_text = ft.Text("تخمین فاصله: ~8.5 متر", size=12, color="amber200")
+        rssi_progress = ft.ProgressBar(value=0.65, color="green400", bgcolor="white10")
 
         def simulate_signal_scan(e):
             val = random.randint(35, 90)
@@ -243,7 +243,7 @@ def main(page: ft.Page):
             rssi_val_text.value = f"-{val} dBm ({'عالی/نزدیک' if val < 50 else 'متوسط' if val < 75 else 'ضعیف'})"
             distance_text.value = f"تخمین فاصله (FSPL): ~{dist} متر"
             rssi_progress.value = (100 - val) / 100
-            rssi_progress.color = ft.Colors.RED_400 if val < 50 else ft.Colors.GREEN_400 if val < 75 else ft.Colors.AMBER_400
+            rssi_progress.color = "red400" if val < 50 else "green400" if val < 75 else "amber400"
             
             if val < 50 and user_store["sound_alert"]:
                 show_toast("🔊 [هشدار صوتی گایگر] سیگنال بسیار نزدیک است!")
@@ -280,25 +280,25 @@ def main(page: ft.Page):
         def render_notes():
             notes_list_view.controls.clear()
             for n in user_store["notes"]:
-                color = ft.Colors.RED_400 if n["suspicious"] else ft.Colors.BLUE_200
+                color = "red400" if n["suspicious"] else "blue200"
                 prefix = "⚠️ [مشکوک] " if n["suspicious"] else "📌 "
                 card = ft.Container(
                     content=ft.Row([
                         ft.Column([
                             ft.Text(f"{prefix}{n['text']}", size=13, weight=ft.FontWeight.BOLD, color=color),
-                            ft.Text(f"{n['date']} | 📍 {n['gps']}", size=10, color=ft.Colors.GREY_400)
+                            ft.Text(f"{n['date']} | 📍 {n['gps']}", size=10, color="grey400")
                         ], expand=True),
-                        ft.IconButton(ft.Icons.DELETE, icon_color=ft.Colors.RED_500, on_click=lambda e, nid=n["id"]: delete_note(nid))
+                        ft.IconButton(ft.icons.DELETE, icon_color="red500", on_click=lambda e, nid=n["id"]: delete_note(nid))
                     ]),
-                    padding=8, bgcolor=ft.Colors.WHITE10, border_radius=8
+                    padding=8, bgcolor="white10", border_radius=8
                 )
                 notes_list_view.controls.append(card)
             page.update()
 
         user_panel = ft.Column([
             ft.Row([
-                ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
-                ft.IconButton(ft.Icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی")
+                ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color="green400"),
+                ft.IconButton(ft.icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             clock_text,
             ft.Divider(),
@@ -312,9 +312,9 @@ def main(page: ft.Page):
                 content=ft.Column([
                     ft.Row([rssi_val_text, distance_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     rssi_progress,
-                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan, icon=ft.Icons.RADAR)
+                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan, icon=ft.icons.RADAR)
                 ]),
-                padding=10, bgcolor=ft.Colors.BLACK26, border_radius=8
+                padding=10, bgcolor="black26", border_radius=8
             ),
             
             ft.Divider(),
@@ -325,10 +325,10 @@ def main(page: ft.Page):
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Row([note_input]),
             ft.Row([is_suspicious_check, gps_check]),
-            ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon=ft.Icons.ADD_LOCATION),
+            ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon=ft.icons.ADD_LOCATION),
             ft.Row([
                 ft.Text("📋 موارد ذخیره‌شده:", size=13, weight=ft.FontWeight.BOLD),
-                ft.ElevatedButton("مشاهده نقشه راداری آفلاین 🗺️", on_click=open_offline_radar_map, bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE)
+                ft.ElevatedButton("مشاهده نقشه راداری آفلاین 🗺️", on_click=open_offline_radar_map, bgcolor="green700", color="white")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             notes_list_view
         ], scroll=ft.ScrollMode.AUTO)
