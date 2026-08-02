@@ -3,9 +3,10 @@ import re
 import math
 import time
 import random
+import asyncio
 from datetime import datetime
 
-CURRENT_VERSION = "18.0.0-SECURITY-ENHANCED-SPLASH"
+CURRENT_VERSION = "18.1.0-FIXED-CRASH"
 
 # تبدیل تاریخ میلادی به شمسی
 def gregorian_to_jalali(gy, gm, gd):
@@ -37,18 +38,18 @@ def get_now_shamsi():
 
 # پایگاه داده در حافظه
 user_store = {
-    "notes": [],                 # تمامی یادداشت‌ها
-    "user_logs": [],             # لاگ‌های ورود و خروج
-    "user_counter": 1,           # شماره‌گذاری هوشمند کاربران
-    "user_pin": "0011300",       # رمز ورود کاربران (قابل تغییر)
-    "admin_pin": "f09931807880F", # رمز ورود ادمین (قابل تغییر)
-    "panic_pin": "9999",         # رمز امحای اضطراری
+    "notes": [],
+    "user_logs": [],
+    "user_counter": 1,
+    "user_pin": "0011300",
+    "admin_pin": "f09931807880F",
+    "panic_pin": "9999",
     "sound_alert": True,
     "online_mode": True,
     "current_role": None,
     "current_user_name": "",
-    "failed_attempts": 0,        # شمارش تلاش‌های ناموفق ورود
-    "lockout_until": 0           # زمان قفل امنیتی ضد نفوذ
+    "failed_attempts": 0,
+    "lockout_until": 0
 }
 
 def sanitize_input(text: str) -> str:
@@ -61,7 +62,7 @@ def calculate_fspl_distance(rssi_dbm: float, freq_mhz: float = 2400.0) -> float:
     except:
         return 0.0
 
-def main(page: ft.Page):
+async def main(page: ft.Page):
     page.title = "سامانه جامع پایش، رادار و صفحات شخصی"
     page.theme_mode = ft.ThemeMode.DARK
     page.rtl = True
@@ -94,11 +95,10 @@ def main(page: ft.Page):
             height=30
         )
 
-    # ----- ۰. صفحه خوش آمدگویی (پرچم ایران) -----
-    def show_splash_screen():
+    # ----- ۰. صفحه خوش آمدگویی (پرچم ایران) بدون کرش -----
+    async def show_splash_screen():
         page.controls.clear()
         
-        # ساخت پرچم گرافیکی ایران (سبز، سفید با نماد، قرمز)
         flag_container = ft.Container(
             content=ft.Column([
                 ft.Container(height=45, bgcolor="#239f40", border_radius=ft.border_radius.only(top_left=10, top_right=10)),
@@ -131,11 +131,11 @@ def main(page: ft.Page):
         page.add(splash_view)
         page.update()
 
-        # وقفه ۳ ثانیه‌ای جهت نمایش پرچم و سپس ورود به ماشین حساب
-        time.sleep(3)
+        # استفاده از asyncio.sleep به جای time.sleep برای جلوگیری از بسته شدن برنامه
+        await asyncio.sleep(2)
         show_login_view()
 
-    # دیالوگ تغییر رمزهای عبور (ورود کاربر / ورود ادمین)
+    # دیالوگ تغییر رمزهای عبور
     def open_change_pin_dialog(e):
         is_admin = (user_store["current_role"] == "admin")
         
@@ -172,7 +172,7 @@ def main(page: ft.Page):
         )
         page.open(change_pin_dialog)
 
-    # دیالوگ نمایش گزارش ورود/خروج کاربران (مخصوص ادمین)
+    # دیالوگ گزارش ورود/خروج کاربران
     def open_admin_logs_dialog(e):
         log_items = []
         for log in reversed(user_store["user_logs"]):
@@ -197,7 +197,7 @@ def main(page: ft.Page):
         )
         page.open(logs_dialog)
 
-    # ----- ۱. نقشه و رادار شخصی / عمومی -----
+    # ----- ۱. نقشه و رادار شخصی -----
     def open_radar_map(e):
         is_admin = (user_store["current_role"] == "admin")
         mode_status = "🌐 حالت آنلاین (نقشه شبکه‌ای)" if user_store["online_mode"] else "🇮🇷 حالت نت ملی / آفلاین (رادار داخلی)"
@@ -267,7 +267,6 @@ def main(page: ft.Page):
         nonlocal calc_expression
         val = e.control.text
 
-        # بررسی قفل امنیتی ضد تلاش ناخواسته
         if time.time() < user_store["lockout_until"]:
             remaining = int(user_store["lockout_until"] - time.time())
             show_toast(f"🛑 ورود به علت تلاش‌های ناموفق قفل است ({remaining} ثانیه باقی‌مانده)")
@@ -277,7 +276,6 @@ def main(page: ft.Page):
             calc_expression = ""
             calc_display.value = "0"
         elif val == "=":
-            # ورود کاربر عادی
             if calc_expression == user_store["user_pin"]:
                 calc_expression = ""
                 user_store["failed_attempts"] = 0
@@ -295,7 +293,6 @@ def main(page: ft.Page):
                 show_dashboard()
                 show_toast(f"👤 خوش آمدید به صفحه شخصی ({user_name})")
                 return
-            # ورود ادمین
             elif calc_expression == user_store["admin_pin"]:
                 calc_expression = ""
                 user_store["failed_attempts"] = 0
@@ -311,7 +308,6 @@ def main(page: ft.Page):
                 show_dashboard()
                 show_toast("👑 ورود موفق در سطح ادمین")
                 return
-            # امحای اضطراری
             elif calc_expression == user_store["panic_pin"]:
                 calc_expression = ""
                 user_store["notes"].clear()
@@ -454,4 +450,12 @@ def main(page: ft.Page):
                     padding=8, bgcolor="white10", border_radius=8
                 )
                 notes_list_view.controls.append(card)
-            page.up
+            page.update()
+
+        admin_logs_btn = ft.ElevatedButton("📋 گزارش ورود/خروج کاربران", on_click=open_admin_logs_dialog, bgcolor="amber900", color="white", height=32) if is_admin else ft.Container()
+
+        dashboard_controls = [
+            ft.Row([
+                ft.Text("📱 سامانه پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color="green400"),
+                ft.Row([
+                    ft.ElevatedButton("🚨 قفل سریع (ماشین حساب)", on_click=logout_action, b
