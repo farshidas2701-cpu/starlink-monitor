@@ -3,10 +3,9 @@ import re
 import math
 import time
 import random
-import asyncio
 from datetime import datetime
 
-CURRENT_VERSION = "18.1.0-FIXED-CRASH"
+CURRENT_VERSION = "18.2.0-STABLE-BUILD"
 
 # تبدیل تاریخ میلادی به شمسی
 def gregorian_to_jalali(gy, gm, gd):
@@ -62,7 +61,7 @@ def calculate_fspl_distance(rssi_dbm: float, freq_mhz: float = 2400.0) -> float:
     except:
         return 0.0
 
-async def main(page: ft.Page):
+def main(page: ft.Page):
     page.title = "سامانه جامع پایش، رادار و صفحات شخصی"
     page.theme_mode = ft.ThemeMode.DARK
     page.rtl = True
@@ -95,8 +94,8 @@ async def main(page: ft.Page):
             height=30
         )
 
-    # ----- ۰. صفحه خوش آمدگویی (پرچم ایران) بدون کرش -----
-    async def show_splash_screen():
+    # ----- ۰. صفحه خوش آمدگویی (پرچم ایران) -----
+    def show_splash_screen():
         page.controls.clear()
         
         flag_container = ft.Container(
@@ -121,8 +120,7 @@ async def main(page: ft.Page):
                 ft.Text("به نام خدا", size=18, weight=ft.FontWeight.BOLD, color="white"),
                 flag_container,
                 ft.Text("سامانه جامع پایش و مدیریت امنیتی", size=14, weight=ft.FontWeight.BOLD, color="green400"),
-                ft.ProgressRing(color="green400", width=25, height=25),
-                ft.Text("در حال بارگذاری و ایمن‌سازی محیط...", size=11, color="grey400")
+                ft.ElevatedButton("ورود به برنامه 🚀", on_click=lambda e: show_login_view(), bgcolor="green800", color="white")
             ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=15),
             alignment=ft.Alignment(0, 0),
             expand=True
@@ -131,11 +129,7 @@ async def main(page: ft.Page):
         page.add(splash_view)
         page.update()
 
-        # استفاده از asyncio.sleep به جای time.sleep برای جلوگیری از بسته شدن برنامه
-        await asyncio.sleep(2)
-        show_login_view()
-
-    # دیالوگ تغییر رمزهای عبور
+    # دیالوگ تغییر رمزها
     def open_change_pin_dialog(e):
         is_admin = (user_store["current_role"] == "admin")
         
@@ -172,7 +166,7 @@ async def main(page: ft.Page):
         )
         page.open(change_pin_dialog)
 
-    # دیالوگ گزارش ورود/خروج کاربران
+    # دیالوگ گزارش ورود/خروج
     def open_admin_logs_dialog(e):
         log_items = []
         for log in reversed(user_store["user_logs"]):
@@ -197,7 +191,7 @@ async def main(page: ft.Page):
         )
         page.open(logs_dialog)
 
-    # ----- ۱. نقشه و رادار شخصی -----
+    # ----- ۱. رادار -----
     def open_radar_map(e):
         is_admin = (user_store["current_role"] == "admin")
         mode_status = "🌐 حالت آنلاین (نقشه شبکه‌ای)" if user_store["online_mode"] else "🇮🇷 حالت نت ملی / آفلاین (رادار داخلی)"
@@ -252,7 +246,7 @@ async def main(page: ft.Page):
         )
         page.open(map_dialog)
 
-    # ----- ۲. ماشین حساب و ورود امنیتی -----
+    # ----- ۲. ماشین حساب و ورود -----
     calc_display = ft.TextField(
         value="0",
         read_only=True,
@@ -269,7 +263,7 @@ async def main(page: ft.Page):
 
         if time.time() < user_store["lockout_until"]:
             remaining = int(user_store["lockout_until"] - time.time())
-            show_toast(f"🛑 ورود به علت تلاش‌های ناموفق قفل است ({remaining} ثانیه باقی‌مانده)")
+            show_toast(f"🛑 ورود قفل است ({remaining} ثانیه باقی‌مانده)")
             return
 
         if val == "C":
@@ -313,7 +307,7 @@ async def main(page: ft.Page):
                 user_store["notes"].clear()
                 user_store["user_logs"].clear()
                 show_login_view()
-                show_toast("🚨 امحای اضطراری انجام شد. تمامی داده‌ها پاک گردیدند.")
+                show_toast("🚨 امحای اضطراری انجام شد.")
                 return
             try:
                 calc_display.value = str(eval(calc_expression))
@@ -322,7 +316,7 @@ async def main(page: ft.Page):
                 user_store["failed_attempts"] += 1
                 if user_store["failed_attempts"] >= 3:
                     user_store["lockout_until"] = time.time() + 15
-                    show_toast("🚨 سیستم به دلیل ۳ ورود اشتباه به مدت ۱۵ ثانیه قفل شد.")
+                    show_toast("🚨 سیستم به دلیل ۳ ورود اشتباه قفل شد.")
                 calc_display.value = "Error"
                 calc_expression = ""
         else:
@@ -362,7 +356,7 @@ async def main(page: ft.Page):
         page.add(calc_view)
         page.update()
 
-    # ----- ۳. داشبورد اختصاصی هر کاربر -----
+    # ----- ۳. داشبورد -----
     def show_dashboard():
         page.controls.clear()
         is_admin = (user_store["current_role"] == "admin")
@@ -458,4 +452,9 @@ async def main(page: ft.Page):
             ft.Row([
                 ft.Text("📱 سامانه پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color="green400"),
                 ft.Row([
-                    ft.ElevatedButton("🚨 قفل سریع (ماشین حساب)", on_click=logout_action, b
+                    ft.ElevatedButton("🚨 قفل سریع (ماشین حساب)", on_click=logout_action, bgcolor="red900", color="white", height=32),
+                    ft.ElevatedButton("🔑 تغییر رمز", on_click=open_change_pin_dialog, bgcolor="blue800", color="white", height=32)
+                ], spacing=5)
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+            
+            ft.Row([role_badge, admin_logs_btn
