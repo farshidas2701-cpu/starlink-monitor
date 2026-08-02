@@ -33,6 +33,10 @@ jobs:
         run: |
           git clone https://github.com/flutter/flutter.git -b stable --depth 1
           echo "$GITHUB_WORKSPACE/flutter/bin" >> $GITHUB_PATH
+          
+      - name: Verify Flutter installation
+        run: |
+          export PATH="$GITHUB_WORKSPACE/flutter/bin:$PATH"
           flutter doctor
 
       - name: Install Python dependencies
@@ -42,4 +46,5 @@ jobs:
 
       - name: Build APK using Flet
         run: |
+          export PATH="$GITHUB_WORKSPACE/flutter/bin:$PATH"
           flet build apk
