@@ -5,7 +5,7 @@ import time
 import random
 from datetime import datetime
 
-CURRENT_VERSION = "7.1.0-FIXED"
+CURRENT_VERSION = "7.2.0-FIXED"
 SPLASH_IMAGE_URL = "https://v3.fasturl.cloud/file/fasturl/2026/08/02/images.jpeg_627fbbf54522930ed6b1fc910e5362bf.jpeg"
 
 # وضعیت عمومی برنامه
@@ -21,7 +21,7 @@ user_store = {
 def sanitize_input(text: str) -> str:
     return re.sub(r'[\';\"\\<>]', '', text)
 
-# الگوریتم داخلی تبدیل میلادی به شمسی بدون نیاز به کتابخانه خارجی
+# الگوریتم داخلی تبدیل میلادی به شمسی
 def gregorian_to_jalali(gy, gm, gd):
     g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     if gy > 1600:
@@ -73,9 +73,9 @@ def main(page: ft.Page):
     # تابع کلی برای نمایش پنجره راهنمای هر بخش
     def show_section_guide(title: str, description: str):
         dialog = ft.AlertDialog(
-            title=ft.Text(f"❓ راهنمای {title}", size=16, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
+            title=ft.Text(f"❓ راهنمای {title}", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
             content=ft.Container(
-                content=ft.Text(description, size=13, color=ft.colors.WHITE70),
+                content=ft.Text(description, size=13, color=ft.Colors.WHITE70),
                 width=300, padding=10
             ),
             actions=[ft.TextButton("متوجه شدم", on_click=lambda e: page.close(dialog))]
@@ -87,9 +87,9 @@ def main(page: ft.Page):
         return ft.Column([
             ft.Container(
                 content=ft.IconButton(
-                    icon=ft.icons.QUESTION_MARK,
-                    icon_color=ft.colors.WHITE,
-                    bgcolor=ft.colors.GREEN_600,
+                    icon=ft.Icons.QUESTION_MARK,
+                    icon_color=ft.Colors.WHITE,
+                    bgcolor=ft.Colors.GREEN_600,
                     icon_size=16,
                     on_click=lambda e: show_section_guide(section_title, guide_text),
                     tooltip=f"راهنمای {section_title}"
@@ -97,11 +97,11 @@ def main(page: ft.Page):
                 shape=ft.BoxShape.CIRCLE,
                 width=32, height=32, alignment=ft.alignment.center
             ),
-            ft.Text("راهنما", size=10, color=ft.colors.GREEN_300)
+            ft.Text("راهنما", size=10, color=ft.Colors.GREEN_300)
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=2)
 
     # ----- 1. ماشین حساب مخفی با رمز تخریب اضطراری -----
-    calc_display = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400)
+    calc_display = ft.Text("0", size=32, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400)
 
     def on_calc_btn_click(e):
         nonlocal calc_expression, is_stealth_mode
@@ -152,7 +152,7 @@ def main(page: ft.Page):
             show_user_dashboard()
         page.update()
 
-    def build_calc_button(text, color=ft.colors.WHITE10):
+    def build_calc_button(text, color=ft.Colors.WHITE10):
         return ft.ElevatedButton(text, on_click=on_calc_btn_click, bgcolor=color, expand=True, height=55)
 
     fake_calc_view = ft.Column([
@@ -160,12 +160,12 @@ def main(page: ft.Page):
             ft.Text("ماشین حساب", size=16, weight=ft.FontWeight.BOLD),
             create_help_button("ماشین حساب مخفی", "برای ورود عادی پین 1234= را وارد کنید.\n\n🚨 در صورت اضطرار، وارد کردن پین 9999= تمام داده‌ها را فوراً پاک کرده و محیط برنامه را خالی نشان می‌دهد.")
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-        ft.Container(content=calc_display, padding=15, bgcolor=ft.colors.BLACK46, border_radius=10, alignment=ft.alignment.center_right),
+        ft.Container(content=calc_display, padding=15, bgcolor=ft.Colors.BLACK46, border_radius=10, alignment=ft.alignment.center_right),
         ft.Column([
-            ft.Row([build_calc_button("7"), build_calc_button("8"), build_calc_button("9"), build_calc_button("/", ft.colors.ORANGE_800)]),
-            ft.Row([build_calc_button("4"), build_calc_button("5"), build_calc_button("6"), build_calc_button("*", ft.colors.ORANGE_800)]),
-            ft.Row([build_calc_button("1"), build_calc_button("2"), build_calc_button("3"), build_calc_button("-", ft.colors.ORANGE_800)]),
-            ft.Row([build_calc_button("C", ft.colors.RED_800), build_calc_button("0"), build_calc_button("=", ft.colors.GREEN_800), build_calc_button("+", ft.colors.ORANGE_800)]),
+            ft.Row([build_calc_button("7"), build_calc_button("8"), build_calc_button("9"), build_calc_button("/", ft.Colors.ORANGE_800)]),
+            ft.Row([build_calc_button("4"), build_calc_button("5"), build_calc_button("6"), build_calc_button("*", ft.Colors.ORANGE_800)]),
+            ft.Row([build_calc_button("1"), build_calc_button("2"), build_calc_button("3"), build_calc_button("-", ft.Colors.ORANGE_800)]),
+            ft.Row([build_calc_button("C", ft.Colors.RED_800), build_calc_button("0"), build_calc_button("=", ft.Colors.GREEN_800), build_calc_button("+", ft.Colors.ORANGE_800)]),
         ], spacing=8)
     ], spacing=15)
 
@@ -173,8 +173,8 @@ def main(page: ft.Page):
     splash_view = ft.Container(
         content=ft.Column([
             ft.Image(src=SPLASH_IMAGE_URL, width=250, height=300, fit=ft.ImageFit.CONTAIN, border_radius=15),
-            ft.Text("به سامانه هوشمند پایش و رادار خوش آمدید", size=15, weight=ft.FontWeight.BOLD, color=ft.colors.WHITE),
-            ft.ElevatedButton("ورود به محیط کاربری 🚀", on_click=lambda e: show_user_dashboard(), bgcolor=ft.colors.GREEN_700, color=ft.colors.WHITE, width=280),
+            ft.Text("به سامانه هوشمند پایش و رادار خوش آمدید", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+            ft.ElevatedButton("ورود به محیط کاربری 🚀", on_click=lambda e: show_user_dashboard(), bgcolor=ft.Colors.GREEN_700, color=ft.Colors.WHITE, width=280),
         ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, spacing=12),
         alignment=ft.alignment.center,
         expand=True
@@ -185,12 +185,12 @@ def main(page: ft.Page):
         page.controls.clear()
         
         date_shamsi, time_tehran = get_tehran_shamsi_datetime()
-        clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran}", size=12, color=ft.colors.CYAN_200, weight=ft.FontWeight.BOLD)
+        clock_text = ft.Text(f"📅 {date_shamsi} | ⏰ {time_tehran}", size=12, color=ft.Colors.CYAN_200, weight=ft.FontWeight.BOLD)
 
         # عناصر بخش اسکن سیگنال و تخمین فاصله
-        rssi_val_text = ft.Text("-65 dBm", size=14, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400)
-        distance_text = ft.Text("تخمین فاصله: ~8.5 متر", size=12, color=ft.colors.AMBER_200)
-        rssi_progress = ft.ProgressBar(value=0.65, color=ft.colors.GREEN_400, bgcolor=ft.colors.WHITE10)
+        rssi_val_text = ft.Text("-65 dBm", size=14, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400)
+        distance_text = ft.Text("تخمین فاصله: ~8.5 متر", size=12, color=ft.Colors.AMBER_200)
+        rssi_progress = ft.ProgressBar(value=0.65, color=ft.Colors.GREEN_400, bgcolor=ft.Colors.WHITE10)
 
         def simulate_signal_scan(e):
             val = random.randint(35, 90)
@@ -198,7 +198,7 @@ def main(page: ft.Page):
             rssi_val_text.value = f"-{val} dBm ({'عالی/نزدیک' if val < 50 else 'متوسط' if val < 75 else 'ضعیف'})"
             distance_text.value = f"تخمین فاصله (FSPL): ~{dist} متر"
             rssi_progress.value = (100 - val) / 100
-            rssi_progress.color = ft.colors.RED_400 if val < 50 else ft.colors.GREEN_400 if val < 75 else ft.colors.AMBER_400
+            rssi_progress.color = ft.Colors.RED_400 if val < 50 else ft.Colors.GREEN_400 if val < 75 else ft.Colors.AMBER_400
             
             if val < 50 and user_store["sound_alert"]:
                 page.snack_bar = ft.SnackBar(ft.Text("🔊 [هشدار صوتی گایگر] سیگنال بسیار نزدیک است!"))
@@ -274,27 +274,27 @@ def main(page: ft.Page):
         def render_notes():
             notes_list_view.controls.clear()
             for n in user_store["notes"]:
-                color = ft.colors.RED_400 if n["suspicious"] else ft.colors.BLUE_200
+                color = ft.Colors.RED_400 if n["suspicious"] else ft.Colors.BLUE_200
                 prefix = "⚠️ [مشکوک] " if n["suspicious"] else "📌 "
                 card = ft.Container(
                     content=ft.Row([
                         ft.Column([
                             ft.Text(f"{prefix}{n['text']}", size=13, weight=ft.FontWeight.BOLD, color=color),
-                            ft.Text(f"{n['date']} | 📍 {n['gps']}", size=10, color=ft.colors.GREY_400)
+                            ft.Text(f"{n['date']} | 📍 {n['gps']}", size=10, color=ft.Colors.GREY_400)
                         ], expand=True),
-                        ft.IconButton(ft.icons.DELETE, icon_color=ft.colors.RED_500, on_click=lambda e, nid=n["id"]: delete_note(nid))
+                        ft.IconButton(ft.Icons.DELETE, icon_color=ft.Colors.RED_500, on_click=lambda e, nid=n["id"]: delete_note(nid))
                     ]),
-                    padding=8, bgcolor=ft.colors.WHITE10, border_radius=8
+                    padding=8, bgcolor=ft.Colors.WHITE10, border_radius=8
                 )
                 notes_list_view.controls.append(card)
             page.update()
 
         user_panel = ft.Column([
             ft.Row([
-                ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color=ft.colors.GREEN_400),
+                ft.Text("📱 سامانه پیشرفته پایش و رادار", size=15, weight=ft.FontWeight.BOLD, color=ft.Colors.GREEN_400),
                 ft.Row([
-                    ft.IconButton(ft.icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی"),
-                    ft.IconButton(ft.icons.DELETE_FOREVER, on_click=panic_wipe, icon_color=ft.colors.RED_400, tooltip="امحای سریع"),
+                    ft.IconButton(ft.Icons.CALCULATOR, on_click=toggle_stealth, tooltip="ماشین حساب مخفی"),
+                    ft.IconButton(ft.Icons.DELETE_FOREVER, on_click=panic_wipe, icon_color=ft.Colors.RED_400, tooltip="امحای سریع"),
                 ])
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             clock_text,
@@ -309,9 +309,9 @@ def main(page: ft.Page):
                 content=ft.Column([
                     ft.Row([rssi_val_text, distance_text], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
                     rssi_progress,
-                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan, icon=ft.icons.RADAR)
+                    ft.ElevatedButton("بروزرسانی اسکن 🔄", on_click=simulate_signal_scan, icon=ft.Icons.RADAR)
                 ]),
-                padding=10, bgcolor=ft.colors.BLACK26, border_radius=8
+                padding=10, bgcolor=ft.Colors.BLACK26, border_radius=8
             ),
             
             ft.Divider(),
@@ -337,10 +337,10 @@ def main(page: ft.Page):
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Row([note_input]),
             ft.Row([is_suspicious_check, gps_check]),
-            ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon=ft.icons.ADD_LOCATION),
+            ft.ElevatedButton("ثبت نقطه روی نقشه", on_click=add_note, icon=ft.Icons.ADD_LOCATION),
             ft.Row([
                 ft.Text("📋 موارد ذخیره‌شده:", size=13, weight=ft.FontWeight.BOLD),
-                ft.IconButton(ft.icons.MAP, on_click=export_kml, tooltip="دانلود خروجی KML برای Google Earth")
+                ft.IconButton(ft.Icons.MAP, on_click=export_kml, tooltip="دانلود خروجی KML برای Google Earth")
             ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             notes_list_view
         ], scroll=ft.ScrollMode.AUTO)
